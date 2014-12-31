@@ -351,6 +351,8 @@ namespace ferram4
 			FARControlSys.threshold_cics = Convert.ToDouble(FARControlSys.threshold_cics_str);
 			FARControlSys.limit_cics_str = config.GetValue("limit_cics", "50");
 			FARControlSys.limit_cics = Convert.ToDouble(FARControlSys.limit_cics_str);
+			FARControlSys.std_aoa_str = config.GetValue("std_aoa", "10");
+			FARControlSys.std_aoa = Convert.ToDouble(FARControlSys.std_aoa_str);
 
             FARControlSys.unitMode = (FARControlSys.SurfaceVelUnit)config.GetValue("unitMode", 0);
             FARControlSys.velMode = (FARControlSys.SurfaceVelMode)config.GetValue("velMode", 0);
@@ -395,6 +397,7 @@ namespace ferram4
 			config.SetValue("k_cics", (FARControlSys.k_cics).ToString());
 			config.SetValue("threshold_cics", (FARControlSys.threshold_cics).ToString());
 			config.SetValue("limit_cics", (FARControlSys.limit_cics).ToString());
+			config.SetValue("std_aoa", (FARControlSys.std_aoa).ToString());
 
             config.SetValue("unitMode", (int)FARControlSys.unitMode);
             config.SetValue("velMode", (int)FARControlSys.velMode); 

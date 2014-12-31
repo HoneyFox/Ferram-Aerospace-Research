@@ -129,6 +129,9 @@ namespace ferram4
 		public static double threshold_cics = 20;
 		public static string limit_cics_str = "50";
 		public static double limit_cics = 50;
+		private static bool AutoTrimmer = true;
+		public static string std_aoa_str = "10.0";
+		public static double std_aoa = 10.0;
 
 		public static double lastError = 0.0;
 		public static double lastDesiredAlpha = 0.0;
@@ -988,6 +991,10 @@ namespace ferram4
             GUILayout.Label("Scaling Altitude:", GUILayout.Width(100));
             alt_str = GUILayout.TextField(alt_str, GUILayout.ExpandWidth(true));
             alt_str = Regex.Replace(alt_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			AutoTrimmer = GUILayout.Toggle(AutoTrimmer, "Auto Trim", mytoggle, GUILayout.Width(70));
+			GUILayout.Label("AoA:", GUILayout.Width(60));
+			std_aoa_str = GUILayout.TextField(std_aoa_str, GUILayout.ExpandWidth(true));
+			std_aoa_str = Regex.Replace(std_aoa_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
 
             GUILayout.EndHorizontal();
 
@@ -1046,7 +1053,7 @@ namespace ferram4
 				k_cics = Convert.ToDouble(k_cics_str);
 				threshold_cics = Convert.ToDouble(threshold_cics_str);
 				limit_cics = Convert.ToDouble(limit_cics_str);
-
+				std_aoa = Convert.ToDouble(std_aoa_str);
                 alt = Convert.ToDouble(alt_str);
                 scaleVelocity = Convert.ToDouble(scaleVelocity_str);
                 if (alt < 0)
@@ -1608,23 +1615,42 @@ namespace ferram4
 				
 				double alpha = AoA;
 
+				if (AutoTrimmer && vessel.Landed == false)
+				{
+					double std_q = FlightGlobals.getAtmDensity(FlightGlobals.getStaticPressure(alt, activeControlSys.vessel.mainBody)) * scaleVelocity * scaleVelocity * 0.5;
+
+					double scaleFactor = std_q / activeControlSys.q;
+
+					// Gradually transit to AutoTrim in between 5m ~ 15m AGL.
+					// Maximum trimmed AoA is 0.5 * upper limit of PAC.
+
+					double ASL = vessel.mainBody.GetAltitude(vessel.CoM);
+
+					double surfaceAlt = vessel.mainBody.pqsController != null ? vessel.pqsAltitude : 0d;
+					if (vessel.mainBody.ocean && surfaceAlt < 0)
+						surfaceAlt = 0; // Ocean has 0 ASL.
+					double AGL = ASL - surfaceAlt;
+
+					desiredAlpha += Math.Min(std_aoa * scaleFactor, Math.Abs(upperLim_pac) * 0.5) * Math.Max(0.0, Math.Min(1.0, (AGL - 5.0) / 10.0));
+				}
+
 				// Add fake AoA if roll rate is faster than threshold value of CICS so that PAC will try to reduce AoA to avoid roll departure.
 				if (CounterInertiaCouplingSystem)
 				{
-					Debug.Log("CICS: " + rollRate.ToString() + " " + alpha.ToString());
 					// If the aircraft is near the limit of AoA.
 					if ((alpha > 0 && alpha > Math.Abs(upperLim_pac) * 0.75) || (alpha < 0 && alpha < -Math.Abs(lowerLim_pac) * 0.75))
 					{
 						if (Math.Abs(rollRate) > 0)
 						{
+							double exceededAoA = alpha < 0 ? (alpha - (-Math.Abs(lowerLim_pac) * 0.75)) : (alpha - Math.Abs(upperLim_pac) * 0.75);
 							double fakeAoA = 0;
 							if (Math.Abs(rollRate) > Math.Abs(threshold_cics))
-								fakeAoA = (Math.Abs(rollRate) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * alpha;
+								fakeAoA = (Math.Abs(rollRate) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * exceededAoA;
 							if (Math.Abs(rollRate) > Math.Abs(limit_cics))
-								fakeAoA = (Math.Abs(limit_cics) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * alpha;
+								fakeAoA = (Math.Abs(limit_cics) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * exceededAoA;
 
 							Debug.Log("CICS: fakeAoA " + fakeAoA.ToString());
-							lastFakeAoA = fakeAoA * 0.6666667 + lastFakeAoA * 0.3333333;
+							lastFakeAoA = fakeAoA * 0.3333333 + lastFakeAoA * 0.6666667;
 							alpha += lastFakeAoA;
 						}
 					}
