@@ -105,7 +105,7 @@ namespace ferram4
 		[KSPField(guiName = "AoA %", isPersistant = true, guiActiveEditor = true, guiActive = false)]
 		public float pitchaxisDueToAoA = 0.0f;
 
-        [UI_FloatRange(maxValue = 40, minValue = -40, scene = UI_Scene.Editor, stepIncrement = 0.5f)]
+        [UI_FloatRange(maxValue = 80, minValue = -80, scene = UI_Scene.Editor, stepIncrement = 0.5f)]
         [KSPField(guiName = "Ctrl Dflct", isPersistant = true)]
         public float maxdeflect = 15;
 
@@ -390,10 +390,15 @@ namespace ferram4
                 if (pitchaxisDueToAoA != 0.0)
 				{ 
                     Vector3d vel = this.GetVelocity();
-                    //Vector3 tmpVec = vessel.ReferenceTransform.up * Vector3.Dot(vessel.ReferenceTransform.up, vel) + vessel.ReferenceTransform.forward * Vector3.Dot(vessel.ReferenceTransform.forward, vel);   //velocity vector projected onto a plane that divides the airplane into left and right halves
+					//Vector3 tmpVec = vessel.ReferenceTransform.up * Vector3.Dot(vessel.ReferenceTransform.up, vel) + vessel.ReferenceTransform.forward * Vector3.Dot(vessel.ReferenceTransform.forward, vel);   //velocity vector projected onto a plane that divides the airplane into left and right halves
 					//double AoA = Vector3.Dot(tmpVec.normalized, vessel.ReferenceTransform.forward);
                     double AoA = base.CalculateAoA(vel.normalized);
-					AoA = FARMathUtil.rad2deg * Math.Asin(AoA);
+					AoA *= FARMathUtil.rad2deg;
+					
+					// Avoid shaky control surfaces if the velocity is too small to calculate stable AoA.
+					if (vel.magnitude < 0.5)
+						AoA = 0;
+
 					if (double.IsNaN(AoA))
 						AoA = 0;
 					AoAdesiredControl += AoA * pitchaxisDueToAoA * 0.01;
@@ -596,7 +601,7 @@ namespace ferram4
             FixWrongUIRange("pitchaxis", 100, -100);
             FixWrongUIRange("yawaxis", 100, -100);
             FixWrongUIRange("rollaxis", 100, -100);
-            FixWrongUIRange("maxdeflect", 40, -40);
+            FixWrongUIRange("maxdeflect", 80, -80);
             FixWrongUIRange("maxdeflectFlap", 85, -85);
         }
 

@@ -111,6 +111,29 @@ namespace ferram4
         public static string k_limiter_str = "0.25";
         public static double k_limiter = 0.25;
 
+		private static bool PitchAoAController = false;
+		public static string upperLim_pac_str = "20";
+		public static double upperLim_pac = 20;
+		public static string lowerLim_pac_str = "-5";
+		public static double lowerLim_pac = -5;
+		public static string k_pac_str = "0.2";
+		public static double k_pac = 0.2;
+		public static string kd_pac_str = "0.3";
+		public static double kd_pac = 0.3;
+		public static string kc_pac_str = "0.0";
+		public static double kc_pac = 0.0;
+		private static bool CounterInertiaCouplingSystem = true;
+		public static string k_cics_str = "0.001";
+		public static double k_cics = 0.001;
+		public static string threshold_cics_str = "20";
+		public static double threshold_cics = 20;
+		public static string limit_cics_str = "50";
+		public static double limit_cics = 50;
+
+		public static double lastError = 0.0;
+		public static double lastDesiredAlpha = 0.0;
+		public static double lastFakeAoA = 0.0;
+
         private static double lastDt = 1;
 
         private Vector3d lastAngVelocity = Vector3.zero;
@@ -966,8 +989,45 @@ namespace ferram4
             alt_str = GUILayout.TextField(alt_str, GUILayout.ExpandWidth(true));
             alt_str = Regex.Replace(alt_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
 
-            GUILayout.EndHorizontal(); 
-            
+            GUILayout.EndHorizontal();
+
+
+			GUILayout.Box("Pitch-AoA Controller", mySty, GUILayout.ExpandWidth(true));
+
+			GUILayout.BeginHorizontal(GUILayout.ExpandWidth(true));
+			GUILayout.Label("Upper Lim:", GUILayout.Width(75));
+			upperLim_pac_str = GUILayout.TextField(upperLim_pac_str, GUILayout.ExpandWidth(true));
+			upperLim_pac_str = Regex.Replace(upperLim_pac_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.Label("Lower Lim:", GUILayout.Width(75));
+			lowerLim_pac_str = GUILayout.TextField(lowerLim_pac_str, GUILayout.ExpandWidth(true));
+			lowerLim_pac_str = Regex.Replace(lowerLim_pac_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.EndHorizontal();
+
+			GUILayout.BeginHorizontal(GUILayout.ExpandWidth(true));
+			GUILayout.Label("k:", GUILayout.Width(25));
+			k_pac_str = GUILayout.TextField(k_pac_str, GUILayout.ExpandWidth(true));
+			k_pac_str = Regex.Replace(k_pac_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.Label("kd:", GUILayout.Width(25));
+			kd_pac_str = GUILayout.TextField(kd_pac_str, GUILayout.ExpandWidth(true));
+			kd_pac_str = Regex.Replace(kd_pac_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.Label("kCm:", GUILayout.Width(40));
+			kc_pac_str = GUILayout.TextField(kc_pac_str, GUILayout.ExpandWidth(true));
+			kc_pac_str = Regex.Replace(kc_pac_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.EndHorizontal();
+
+			GUILayout.BeginHorizontal(GUILayout.ExpandWidth(true));
+			CounterInertiaCouplingSystem = GUILayout.Toggle(CounterInertiaCouplingSystem, "CICS", mytoggle, GUILayout.MinWidth(60));
+			GUILayout.Label("k:", GUILayout.Width(20));
+			k_cics_str = GUILayout.TextField(k_cics_str, GUILayout.ExpandWidth(true));
+			k_cics_str = Regex.Replace(k_cics_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.Label("thrshd:", GUILayout.Width(60));
+			threshold_cics_str = GUILayout.TextField(threshold_cics_str, GUILayout.ExpandWidth(true));
+			threshold_cics_str = Regex.Replace(threshold_cics_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.Label("limit:", GUILayout.Width(40));
+			limit_cics_str = GUILayout.TextField(limit_cics_str, GUILayout.ExpandWidth(true));
+			limit_cics_str = Regex.Replace(limit_cics_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.EndHorizontal();
+
             if (GUILayout.Button("Update Gains, Limits and Values", mytoggle, GUILayout.ExpandWidth(true), GUILayout.Height(30.0F)))
             {
                 k_wingleveler = Convert.ToDouble(k_wingleveler_str);
@@ -978,6 +1038,14 @@ namespace ferram4
                 upperLim = Convert.ToDouble(upperLim_str);
                 lowerLim = Convert.ToDouble(lowerLim_str);
                 k_limiter = Convert.ToDouble(k_limiter_str);
+				upperLim_pac = Convert.ToDouble(upperLim_pac_str);
+				lowerLim_pac = Convert.ToDouble(lowerLim_pac_str);
+				k_pac = Convert.ToDouble(k_pac_str);
+				kd_pac = Convert.ToDouble(kd_pac_str);
+				kc_pac = Convert.ToDouble(kc_pac_str);
+				k_cics = Convert.ToDouble(k_cics_str);
+				threshold_cics = Convert.ToDouble(threshold_cics_str);
+				limit_cics = Convert.ToDouble(limit_cics_str);
 
                 alt = Convert.ToDouble(alt_str);
                 scaleVelocity = Convert.ToDouble(scaleVelocity_str);
@@ -1087,7 +1155,8 @@ namespace ferram4
                 PitchDamperOn = GUILayout.Toggle(PitchDamperOn, "Pitch", mytoggle, GUILayout.ExpandWidth(true));
                 AoALimiter = GUILayout.Toggle(AoALimiter, "AoA", mytoggle, GUILayout.MinWidth(30));
                 ControlReducer = GUILayout.Toggle(ControlReducer, "DCA", mytoggle, GUILayout.MinWidth(30));
-                GUILayout.EndHorizontal();
+				PitchAoAController = GUILayout.Toggle(PitchAoAController, "PAC", mytoggle, GUILayout.MinWidth(30));
+				GUILayout.EndHorizontal();
 
                 AutopilotWindow = GUILayout.Toggle(AutopilotWindow, "FAR Flight Assistance Options", mytoggle, GUILayout.ExpandWidth(true));
 
@@ -1465,18 +1534,26 @@ namespace ferram4
             double dt = (TimeWarp.fixedDeltaTime + lastDt) * 0.5;      //Not really proper, but since dT jumps around a lot this should lower the jitters
             double recipDt = 1 / dt;
             double ctrlTimeConst = FARControllableSurface.timeConstant * recipDt;
-            if (WingLevelerOn)
+
+			double rollRate = 0;
+
+			if (WingLevelerOn || CounterInertiaCouplingSystem)
             {
                 if (k_wingleveler > 0)
                 {
                     double phi = -roll * FARMathUtil.deg2rad;
                     double d_phi = (phi - lastPhi) * recipDt;
-                    if (Math.Abs(state.roll - state.rollTrim) < 0.01)
-                    {
-                        tmp = k_wingleveler * phi + Math.Abs(kd_wingleveler) * d_phi;
-                        tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
-                        state.roll = (float)FARMathUtil.Clamp(state.roll + tmp, -1, 1);
-                    }
+					rollRate = d_phi * FARMathUtil.rad2deg;
+					if (WingLevelerOn)
+					{
+						if (Math.Abs(state.roll - state.rollTrim) < 0.01)
+						{
+							tmp = k_wingleveler * phi + Math.Abs(kd_wingleveler) * d_phi;
+							tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
+							if (WingLevelerOn)
+								state.roll = (float)FARMathUtil.Clamp(state.roll + tmp, -1, 1);
+						}
+					}
                     lastPhi = phi;
                 }
                 else
@@ -1486,12 +1563,16 @@ namespace ferram4
                         phi -= 360;
                     phi = -phi * FARMathUtil.deg2rad;
                     double d_phi = (phi - lastPhi) * recipDt;
-                    if (Mathf.Abs(state.roll - state.rollTrim) < 0.01f)
-                    {
-                        tmp = -k_wingleveler * phi + Math.Abs(kd_wingleveler) * d_phi;
-                        tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
-                        state.roll = (float)FARMathUtil.Clamp(state.roll + tmp, -1, 1);
-                    }
+					rollRate = d_phi * FARMathUtil.rad2deg;
+					if (WingLevelerOn)
+					{
+						if (Mathf.Abs(state.roll - state.rollTrim) < 0.01f)
+						{
+							tmp = -k_wingleveler * phi + Math.Abs(kd_wingleveler) * d_phi;
+							tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
+							state.roll = (float)FARMathUtil.Clamp(state.roll + tmp, -1, 1);
+						}
+					}
                     lastPhi = phi;
                 }
             }
@@ -1505,14 +1586,93 @@ namespace ferram4
                 {
                     tmp = k_yawdamper * d_beta;// +k_yawdamper / 5 * dd_beta;
                     tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
+
+					// Avoid shaky control surfaces if the velocity is too small to calculate stable Beta.
+					Vector3d vel = this.GetVelocity();
+					if (vel.magnitude < 0.5)
+						tmp = 0;
+
                     state.yaw = (float)FARMathUtil.Clamp(state.yaw + tmp, -1, 1);
                 }
                 lastBeta = beta;
                 //lastD_beta = d_beta;
             }
+
+			if (PitchAoAController)
+			{
+				double desiredAlpha;
+				if (state.pitch >= 0)
+					desiredAlpha = state.pitch * Math.Abs(upperLim_pac);
+				else
+					desiredAlpha = state.pitch * Math.Abs(lowerLim_pac);
+				
+				double alpha = AoA;
+
+				// Add fake AoA if roll rate is faster than threshold value of CICS so that PAC will try to reduce AoA to avoid roll departure.
+				if (CounterInertiaCouplingSystem)
+				{
+					Debug.Log("CICS: " + rollRate.ToString() + " " + alpha.ToString());
+					// If the aircraft is near the limit of AoA.
+					if ((alpha > 0 && alpha > Math.Abs(upperLim_pac) * 0.75) || (alpha < 0 && alpha < -Math.Abs(lowerLim_pac) * 0.75))
+					{
+						if (Math.Abs(rollRate) > 0)
+						{
+							double fakeAoA = 0;
+							if (Math.Abs(rollRate) > Math.Abs(threshold_cics))
+								fakeAoA = (Math.Abs(rollRate) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * alpha;
+							if (Math.Abs(rollRate) > Math.Abs(limit_cics))
+								fakeAoA = (Math.Abs(limit_cics) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * alpha;
+
+							Debug.Log("CICS: fakeAoA " + fakeAoA.ToString());
+							lastFakeAoA = fakeAoA * 0.6666667 + lastFakeAoA * 0.3333333;
+							alpha += lastFakeAoA;
+						}
+					}
+				}
+
+				double error = desiredAlpha - alpha;
+				double d_error = (error - lastError) * recipDt;
+
+				if (d_error != 0)
+				{
+					// kc_pac > 0 for static unstable aircraft. < 0 for static stable aircraft.
+					if (kc_pac > 1.0) kc_pac = 1.0;
+					if (kc_pac < -1.0) kc_pac = -1.0;
+
+					double input = k_pac * error + kd_pac * d_error;
+					input = Math.Max(-2.0, Math.Min(input, 2.0)); // Clamp to -2.0 ~ 2.0
+					if (error * alpha > 0.0)
+					{
+						// Aircraft is attempting to increase the absolute value of AoA.
+
+						// If the input is on the same side as error, reduce it if unstable, increase it if stable.
+						if (input * error > 0)
+							input *= Math.Min(1.0 - kc_pac, 1.0);
+					}
+					else
+					{
+						// Aircraft is attempting to decrease the absolute value of AoA.
+						if (input * error > 0)
+							input *= Math.Min(1.0 + kc_pac, 1.0);
+					}
+					
+					// Avoid shaky control surfaces if the velocity is too small to calculate stable AoA.
+					Vector3d vel = this.GetVelocity();
+					if (vel.magnitude < 0.5)
+						input = 0;
+
+					state.pitch = (float)FARMathUtil.Clamp(input + state.pitch, -1, 1);
+
+					lastError = error;
+					lastDesiredAlpha = desiredAlpha;
+				}
+				else
+				{ 
+					// We've run this section of codes in this frame. Skip them.
+				}
+			}
             if (PitchDamperOn)
             {
-
                 double alpha = (-AoA * FARMathUtil.deg2rad + 0.5 * lastAlpha) * 0.66666667;
                 double d_alpha = (alpha - lastAlpha) * recipDt;
                 //float dd_alpha = (d_alpha - lastD_alpha) / dt;
@@ -1520,12 +1680,24 @@ namespace ferram4
 				{
 					tmp = k_pitchdamper * d_alpha;// +k_pitchdamper / 5 * dd_alpha;
 					tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
+
+					// Avoid shaky control surfaces if the velocity is too small to calculate stable AoA.
+					Vector3d vel = this.GetVelocity();
+					if (vel.magnitude < 0.5)
+						tmp = 0;
+
 					state.pitch = (float)FARMathUtil.Clamp(tmp + state.pitch, -1, 1);
 				}
 				else
 				{
 					tmp = k2_pitchdamper * d_alpha;// +k_pitchdamper / 5 * dd_alpha;
 					tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
+
+					// Avoid shaky control surfaces if the velocity is too small to calculate stable AoA.
+					Vector3d vel = this.GetVelocity();
+					if (vel.magnitude < 0.5)
+						tmp = 0;
+
 					state.pitch = (float)FARMathUtil.Clamp(tmp + state.pitch, -1, 1);
 				}
                 lastAlpha = alpha;

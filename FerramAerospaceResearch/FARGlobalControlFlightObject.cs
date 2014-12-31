@@ -321,7 +321,7 @@ namespace ferram4
             FARControlSys.kd_wingleveler = Convert.ToDouble(FARControlSys.kd_wingleveler_str);
             FARControlSys.k_yawdamper_str = config.GetValue("k_yawdamper", "0.1");
             FARControlSys.k_yawdamper = Convert.ToDouble(FARControlSys.k_yawdamper_str);
-            FARControlSys.k_pitchdamper_str = config.GetValue("k_pitchdamper", "0.25");
+            FARControlSys.k_pitchdamper_str = config.GetValue("k_pitchdamper", "0.07");
             FARControlSys.k_pitchdamper = Convert.ToDouble(FARControlSys.k_pitchdamper_str);
 			FARControlSys.k2_pitchdamper_str = config.GetValue("k2_pitchdamper", "0.06");
 			FARControlSys.k2_pitchdamper = Convert.ToDouble(FARControlSys.k2_pitchdamper_str);
@@ -335,6 +335,22 @@ namespace ferram4
             FARControlSys.lowerLim = Convert.ToDouble(FARControlSys.lowerLim_str);
             FARControlSys.k_limiter_str = config.GetValue("k_limiter", "0.25");
             FARControlSys.k_limiter = Convert.ToDouble(FARControlSys.k_limiter_str);
+			FARControlSys.upperLim_pac_str = config.GetValue("upperLim_pac", "20");
+			FARControlSys.upperLim_pac = Convert.ToDouble(FARControlSys.upperLim_pac);
+			FARControlSys.lowerLim_pac_str = config.GetValue("lowerLim_pac", "-5");
+			FARControlSys.lowerLim_pac = Convert.ToDouble(FARControlSys.lowerLim_pac);
+			FARControlSys.k_pac_str = config.GetValue("k_pac", "0.2");
+			FARControlSys.k_pac = Convert.ToDouble(FARControlSys.k_pac_str);
+			FARControlSys.kd_pac_str = config.GetValue("kd_pac", "0.3");
+			FARControlSys.kd_pac = Convert.ToDouble(FARControlSys.kd_pac_str);
+			FARControlSys.kc_pac_str = config.GetValue("kc_pac", "0.0");
+			FARControlSys.kc_pac = Convert.ToDouble(FARControlSys.kc_pac_str);
+			FARControlSys.k_cics_str = config.GetValue("k_cics", "0.001");
+			FARControlSys.k_cics = Convert.ToDouble(FARControlSys.k_cics_str);
+			FARControlSys.threshold_cics_str = config.GetValue("threshold_cics", "20");
+			FARControlSys.threshold_cics = Convert.ToDouble(FARControlSys.threshold_cics_str);
+			FARControlSys.limit_cics_str = config.GetValue("limit_cics", "50");
+			FARControlSys.limit_cics = Convert.ToDouble(FARControlSys.limit_cics_str);
 
             FARControlSys.unitMode = (FARControlSys.SurfaceVelUnit)config.GetValue("unitMode", 0);
             FARControlSys.velMode = (FARControlSys.SurfaceVelMode)config.GetValue("velMode", 0);
@@ -371,6 +387,14 @@ namespace ferram4
             config.SetValue("upperLim", (FARControlSys.upperLim).ToString());
             config.SetValue("lowerLim", (FARControlSys.lowerLim).ToString());
             config.SetValue("k_limiter", (FARControlSys.k_limiter).ToString());
+			config.SetValue("upperLim_pac", (FARControlSys.upperLim_pac).ToString());
+			config.SetValue("lowerLim_pac", (FARControlSys.lowerLim_pac).ToString());
+			config.SetValue("k_pac", (FARControlSys.k_pac).ToString());
+			config.SetValue("kd_pac", (FARControlSys.kd_pac).ToString());
+			config.SetValue("kc_pac", (FARControlSys.kc_pac).ToString());
+			config.SetValue("k_cics", (FARControlSys.k_cics).ToString());
+			config.SetValue("threshold_cics", (FARControlSys.threshold_cics).ToString());
+			config.SetValue("limit_cics", (FARControlSys.limit_cics).ToString());
 
             config.SetValue("unitMode", (int)FARControlSys.unitMode);
             config.SetValue("velMode", (int)FARControlSys.velMode); 
