@@ -79,7 +79,7 @@ namespace ferram4
         private static bool WingLevelerOn = false;
         public static string k_wingleveler_str = "0.05";
         public static double k_wingleveler = 0.05;
-        public static string kd_wingleveler_str = "0.002";
+        public static string kd_wingleveler_str = "0.02";
         public static double kd_wingleveler = 0.002;
         private static double lastPhi = 0;
 
@@ -90,10 +90,10 @@ namespace ferram4
         private static double lastBeta = 0;
 
         private static bool PitchDamperOn = false;
-        public static string k_pitchdamper_str = "0.25";
-        public static double k_pitchdamper = 0.25;
-		public static string k2_pitchdamper_str = "0.06";
-		public static double k2_pitchdamper = 0.06;
+        public static string k_pitchdamper_str = "0.1";
+        public static double k_pitchdamper = 0.1;
+		public static string k2_pitchdamper_str = "0.03";
+		public static double k2_pitchdamper = 0.03;
 
         private static double lastAlpha = 0;
 
@@ -116,15 +116,15 @@ namespace ferram4
 		public static double upperLim_pac = 20;
 		public static string lowerLim_pac_str = "-5";
 		public static double lowerLim_pac = -5;
-		public static string k_pac_str = "0.2";
-		public static double k_pac = 0.2;
-		public static string kd_pac_str = "0.3";
-		public static double kd_pac = 0.3;
+		public static string k_pac_str = "0.5";
+		public static double k_pac = 0.5;
+		public static string kd_pac_str = "0.2";
+		public static double kd_pac = 0.2;
 		public static string kc_pac_str = "0.0";
 		public static double kc_pac = 0.0;
 		private static bool CounterInertiaCouplingSystem = true;
-		public static string k_cics_str = "0.001";
-		public static double k_cics = 0.001;
+		public static string k_cics_str = "0.01";
+		public static double k_cics = 0.01;
 		public static string threshold_cics_str = "20";
 		public static double threshold_cics = 20;
 		public static string limit_cics_str = "50";
@@ -133,9 +133,10 @@ namespace ferram4
 		public static string std_aoa_str = "10.0";
 		public static double std_aoa = 10.0;
 
-		public static double lastError = 0.0;
 		public static double lastDesiredAlpha = 0.0;
 		public static double lastFakeAoA = 0.0;
+		public static double lastAoA = 0.0;
+		public static double lastDAoA = 0.0;
 
         private static double lastDt = 1;
 
@@ -1605,6 +1606,7 @@ namespace ferram4
                 //lastD_beta = d_beta;
             }
 
+			double pitchCommandByPAC = 0.0;
 			if (PitchAoAController)
 			{
 				double desiredAlpha;
@@ -1612,16 +1614,14 @@ namespace ferram4
 					desiredAlpha = state.pitch * Math.Abs(upperLim_pac);
 				else
 					desiredAlpha = state.pitch * Math.Abs(lowerLim_pac);
-				
-				double alpha = AoA;
 
 				if (AutoTrimmer && vessel.Landed == false)
 				{
-					double std_q = FlightGlobals.getAtmDensity(FlightGlobals.getStaticPressure(alt, activeControlSys.vessel.mainBody)) * scaleVelocity * scaleVelocity * 0.5;
+					double std_q = FlightGlobals.getAtmDensity(FlightGlobals.getStaticPressure(alt, vessel.mainBody)) * scaleVelocity * scaleVelocity * 0.5;
 
 					double scaleFactor = std_q / activeControlSys.q;
 
-					// Gradually transit to AutoTrim in between 5m ~ 15m AGL.
+					// Gradually transit to AutoTrim in between 10m ~ 50m AGL.
 					// Maximum trimmed AoA is 0.5 * upper limit of PAC.
 
 					double ASL = vessel.mainBody.GetAltitude(vessel.CoM);
@@ -1631,9 +1631,11 @@ namespace ferram4
 						surfaceAlt = 0; // Ocean has 0 ASL.
 					double AGL = ASL - surfaceAlt;
 
-					desiredAlpha += Math.Min(std_aoa * scaleFactor, Math.Abs(upperLim_pac) * 0.5) * Math.Max(0.0, Math.Min(1.0, (AGL - 5.0) / 10.0));
+					double trimAoA = Math.Min(std_aoa * scaleFactor, Math.Abs(upperLim_pac) * 0.75) * Math.Max(0.0, Math.Min(1.0, (AGL - 10.0) / 40.0));
+					desiredAlpha = Math.Min(upperLim_pac, desiredAlpha + trimAoA);
 				}
-
+				
+				double alpha = AoA;
 				// Add fake AoA if roll rate is faster than threshold value of CICS so that PAC will try to reduce AoA to avoid roll departure.
 				if (CounterInertiaCouplingSystem)
 				{
@@ -1649,59 +1651,67 @@ namespace ferram4
 							if (Math.Abs(rollRate) > Math.Abs(limit_cics))
 								fakeAoA = (Math.Abs(limit_cics) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * exceededAoA;
 
-							Debug.Log("CICS: fakeAoA " + fakeAoA.ToString());
-							lastFakeAoA = fakeAoA * 0.3333333 + lastFakeAoA * 0.6666667;
+							lastFakeAoA = fakeAoA * 0.333333 + lastFakeAoA * 0.666667;
 							alpha += lastFakeAoA;
 						}
 					}
 				}
 
-				double error = desiredAlpha - alpha;
-				double d_error = (error - lastError) * recipDt;
+				double error;
+				double d_AoA;
 
-				if (d_error != 0)
+				Debug.Log("desiredAlpha = " + desiredAlpha.ToString("F2") + "  lastDesiredAlpha = " + lastDesiredAlpha.ToString("F2"));
+				desiredAlpha = Mathf.MoveTowards((float)lastDesiredAlpha, (float)(desiredAlpha * 0.333333 + lastDesiredAlpha * 0.666667), (float)((Math.Abs(upperLim_pac) + Math.Abs(lowerLim_pac)) * 10 * Time.deltaTime));
+				Debug.Log("smoothedDesiredAlpha = " + desiredAlpha.ToString("F2") + "  alpha = " + alpha.ToString("F2"));
+				error = desiredAlpha - alpha;
+				if (AoA != lastAoA)
+					d_AoA = (AoA - lastAoA) / Time.deltaTime;
+				else
+					d_AoA = lastDAoA;
+
+				Debug.Log("err = " + error.ToString("F2"));
+				Debug.Log("dT = " + Time.deltaTime.ToString("F4") + "  dAoA = " + d_AoA.ToString("F2"));
+
+				// kc_pac > 0 for static unstable aircraft. < 0 for static stable aircraft.
+				if (kc_pac > 1.0) kc_pac = 1.0;
+				if (kc_pac < -1.0) kc_pac = -1.0;
+
+				bool isPlayerPitching = (Math.Abs(state.pitch - state.pitchTrim) >= 0.01);
+				double pacRange = (Math.Abs(upperLim_pac) + Math.Abs(lowerLim_pac));
+				double input = k_pac * (isPlayerPitching ? error : Math.Min(pacRange * 0.25, Math.Max(-pacRange * 0.25, error))) + kd_pac * (0.0 - d_AoA);
+				input = Math.Max(-2.0, Math.Min(input, 2.0)); // Clamp to -2.0 ~ 2.0
+				if (error * AoA > 0.0)
 				{
-					// kc_pac > 0 for static unstable aircraft. < 0 for static stable aircraft.
-					if (kc_pac > 1.0) kc_pac = 1.0;
-					if (kc_pac < -1.0) kc_pac = -1.0;
+					// Aircraft is attempting to increase the absolute value of AoA.
 
-					double input = k_pac * error + kd_pac * d_error;
-					input = Math.Max(-2.0, Math.Min(input, 2.0)); // Clamp to -2.0 ~ 2.0
-					if (error * alpha > 0.0)
-					{
-						// Aircraft is attempting to increase the absolute value of AoA.
-
-						// If the input is on the same side as error, reduce it if unstable, increase it if stable.
-						if (input * error > 0)
-							input *= Math.Min(1.0 - kc_pac, 1.0);
-					}
-					else
-					{
-						// Aircraft is attempting to decrease the absolute value of AoA.
-						if (input * error > 0)
-							input *= Math.Min(1.0 + kc_pac, 1.0);
-					}
-					
-					// Avoid shaky control surfaces if the velocity is too small to calculate stable AoA.
-					Vector3d vel = this.GetVelocity();
-					if (vel.magnitude < 0.5)
-						input = 0;
-
-					state.pitch = (float)FARMathUtil.Clamp(input + state.pitch, -1, 1);
-
-					lastError = error;
-					lastDesiredAlpha = desiredAlpha;
+					// If the input is on the same side as error, reduce it if unstable, increase it if stable.
+					if (input * error > 0)
+						input *= Math.Min(1.0 - kc_pac, 1.5);
 				}
 				else
-				{ 
-					// We've run this section of codes in this frame. Skip them.
+				{
+					// Aircraft is attempting to decrease the absolute value of AoA.
+					if (input * error > 0)
+						input *= Math.Min(1.0 + kc_pac, 1.5);
 				}
+
+				// Avoid shaky control surfaces if the velocity is too small to calculate stable AoA.
+				Vector3d vel = this.GetVelocity();
+				if (vel.magnitude < 0.5)
+					input = 0;
+
+				pitchCommandByPAC = input;
+				//state.pitch = (float)FARMathUtil.Clamp(input + state.pitch, -1, 1);
+
+				lastDesiredAlpha = desiredAlpha;
+				lastAoA = AoA;
+				lastDAoA = d_AoA;
 			}
-            if (PitchDamperOn)
-            {
-                double alpha = (-AoA * FARMathUtil.deg2rad + 0.5 * lastAlpha) * 0.66666667;
-                double d_alpha = (alpha - lastAlpha) * recipDt;
-                //float dd_alpha = (d_alpha - lastD_alpha) / dt;
+			if (PitchDamperOn)
+			{
+				double alpha = (-AoA * FARMathUtil.deg2rad + 0.5 * lastAlpha) * 0.66666667;
+				double d_alpha = (alpha - lastAlpha) * recipDt;
+				//float dd_alpha = (d_alpha - lastD_alpha) / dt;
 				if (Math.Abs(state.pitch - state.pitchTrim) < 0.01)
 				{
 					tmp = k_pitchdamper * d_alpha;// +k_pitchdamper / 5 * dd_alpha;
@@ -1712,6 +1722,7 @@ namespace ferram4
 					if (vel.magnitude < 0.5)
 						tmp = 0;
 
+					state.pitch = (float)FARMathUtil.Clamp(pitchCommandByPAC + state.pitch, -1, 1);
 					state.pitch = (float)FARMathUtil.Clamp(tmp + state.pitch, -1, 1);
 				}
 				else
@@ -1724,11 +1735,17 @@ namespace ferram4
 					if (vel.magnitude < 0.5)
 						tmp = 0;
 
+					state.pitch = (float)FARMathUtil.Clamp(pitchCommandByPAC + state.pitch, -1, 1);
 					state.pitch = (float)FARMathUtil.Clamp(tmp + state.pitch, -1, 1);
 				}
-                lastAlpha = alpha;
-                //lastD_alpha = d_alpha;
-            }
+				lastAlpha = alpha;
+				//lastD_alpha = d_alpha;
+			}
+			else
+			{
+				state.pitch = (float)FARMathUtil.Clamp(pitchCommandByPAC + state.pitch, -1, 1);
+			}
+
             if (AoALimiter)
             {
                 if (AoA > upperLim)
