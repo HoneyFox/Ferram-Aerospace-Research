@@ -116,16 +116,16 @@ namespace ferram4
 		public static double upperLim_pac = 20;
 		public static string lowerLim_pac_str = "-5";
 		public static double lowerLim_pac = -5;
-		public static string k_pac_str = "0.5";
+		public static string k_pac_str = "0.12";
 		public static double k_pac = 0.5;
-		public static string kd_pac_str = "0.2";
+		public static string kd_pac_str = "0.06";
 		public static double kd_pac = 0.2;
 		public static string kc_pac_str = "0.0";
 		public static double kc_pac = 0.0;
 		private static bool CounterInertiaCouplingSystem = true;
 		public static string k_cics_str = "0.01";
 		public static double k_cics = 0.01;
-		public static string threshold_cics_str = "20";
+		public static string threshold_cics_str = "10";
 		public static double threshold_cics = 20;
 		public static string limit_cics_str = "50";
 		public static double limit_cics = 50;
@@ -1632,7 +1632,7 @@ namespace ferram4
 					double AGL = ASL - surfaceAlt;
 
 					double trimAoA = Math.Min(std_aoa * scaleFactor, Math.Abs(upperLim_pac) * 0.75);
-					double limitAoA = std_aoa;
+					double limitAoA = Math.Min(std_aoa, trimAoA);
 
 					float blendFactor = Mathf.Max(0.0f, Mathf.Min(1.0f, (float)((AGL - 15.0) / 25.0)));
 					double finalTrimAoA = Mathf.Lerp((float)limitAoA, (float)trimAoA, blendFactor);
@@ -1767,7 +1767,7 @@ namespace ferram4
                     activeControlSys.scalingfactor = 1;
                     return;
                 }
-                activeControlSys.scalingfactor = std_q / activeControlSys.q;
+                activeControlSys.scalingfactor = Math.Sqrt(std_q / activeControlSys.q);
 
                 state.pitch = state.pitchTrim + (state.pitch - state.pitchTrim) * (float)activeControlSys.scalingfactor;
                 state.yaw = state.yawTrim + (state.yaw - state.yawTrim) * (float)activeControlSys.scalingfactor;
