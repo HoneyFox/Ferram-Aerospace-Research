@@ -1615,13 +1615,13 @@ namespace ferram4
 				else
 					desiredAlpha = state.pitch * Math.Abs(lowerLim_pac);
 
-				if (AutoTrimmer && vessel.Landed == false)
+				if (AutoTrimmer)
 				{
 					double std_q = FlightGlobals.getAtmDensity(FlightGlobals.getStaticPressure(alt, vessel.mainBody)) * scaleVelocity * scaleVelocity * 0.5;
 
 					double scaleFactor = std_q / activeControlSys.q;
 
-					// Gradually transit to AutoTrim in between 10m ~ 50m AGL.
+					// Gradually transit to full AutoTrim in between 15m ~ 40m AGL.
 					// Maximum trimmed AoA is 0.5 * upper limit of PAC.
 
 					double ASL = vessel.mainBody.GetAltitude(vessel.CoM);
@@ -1631,8 +1631,13 @@ namespace ferram4
 						surfaceAlt = 0; // Ocean has 0 ASL.
 					double AGL = ASL - surfaceAlt;
 
-					double trimAoA = Math.Min(std_aoa * scaleFactor, Math.Abs(upperLim_pac) * 0.5) * Math.Max(0.0, Math.Min(1.0, (AGL - 10.0) / 40.0));
-					desiredAlpha = Math.Min(upperLim_pac, desiredAlpha + trimAoA);
+					double trimAoA = Math.Min(std_aoa * scaleFactor, Math.Abs(upperLim_pac) * 0.5);
+					double limitAoA = std_aoa;
+
+					float blendFactor = Mathf.Max(0.0f, Mathf.Min(1.0f, (float)((AGL - 15.0) / 25.0)));
+					double finalTrimAoA = Mathf.Lerp((float)limitAoA, (float)trimAoA, blendFactor);
+
+					desiredAlpha = Math.Min(upperLim_pac, desiredAlpha + finalTrimAoA);
 				}
 				
 				double alpha = AoA;
@@ -1660,17 +1665,17 @@ namespace ferram4
 				double error;
 				double d_AoA;
 
-				Debug.Log("desiredAlpha = " + desiredAlpha.ToString("F2") + "  lastDesiredAlpha = " + lastDesiredAlpha.ToString("F2"));
+				//Debug.Log("desiredAlpha = " + desiredAlpha.ToString("F2") + "  lastDesiredAlpha = " + lastDesiredAlpha.ToString("F2"));
 				desiredAlpha = Mathf.MoveTowards((float)lastDesiredAlpha, (float)(desiredAlpha * 0.333333 + lastDesiredAlpha * 0.666667), (float)((Math.Abs(upperLim_pac) + Math.Abs(lowerLim_pac)) * 10 * Time.deltaTime));
-				Debug.Log("smoothedDesiredAlpha = " + desiredAlpha.ToString("F2") + "  alpha = " + alpha.ToString("F2"));
+				//Debug.Log("smoothedDesiredAlpha = " + desiredAlpha.ToString("F2") + "  alpha = " + alpha.ToString("F2"));
 				error = desiredAlpha - alpha;
 				if (AoA != lastAoA)
 					d_AoA = (AoA - lastAoA) / Time.deltaTime;
 				else
 					d_AoA = lastDAoA;
 
-				Debug.Log("err = " + error.ToString("F2"));
-				Debug.Log("dT = " + Time.deltaTime.ToString("F4") + "  dAoA = " + d_AoA.ToString("F2"));
+				//Debug.Log("err = " + error.ToString("F2"));
+				//Debug.Log("dT = " + Time.deltaTime.ToString("F4") + "  dAoA = " + d_AoA.ToString("F2"));
 
 				// kc_pac > 0 for static unstable aircraft. < 0 for static stable aircraft.
 				if (kc_pac > 1.0) kc_pac = 1.0;
