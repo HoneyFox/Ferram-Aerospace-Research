@@ -1631,7 +1631,7 @@ namespace ferram4
 						surfaceAlt = 0; // Ocean has 0 ASL.
 					double AGL = ASL - surfaceAlt;
 
-					double trimAoA = Math.Min(std_aoa * scaleFactor, Math.Abs(upperLim_pac) * 0.5);
+					double trimAoA = Math.Min(std_aoa * scaleFactor, Math.Abs(upperLim_pac) * 0.75);
 					double limitAoA = std_aoa;
 
 					float blendFactor = Mathf.Max(0.0f, Mathf.Min(1.0f, (float)((AGL - 15.0) / 25.0)));
