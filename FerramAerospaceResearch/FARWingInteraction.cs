@@ -208,6 +208,12 @@ namespace ferram4
                 rightwardExposure = ExposureInSpanDirection(out nearbyWingModulesRightward, parentWingPart.transform.right, VesselPartList, flt_b_2, flt_MAC, flt_TaperRatio, flt_MidChordSweep);
             }
 
+			//Debug.Log("Nearby Wing of " + parentWingPart.partInfo.title + ": " 
+			//	+ nearbyWingModulesForward.Count((FARWingAerodynamicModel module) => module != null).ToString() + ", "
+			//	+ nearbyWingModulesBackward.Count((FARWingAerodynamicModel module) => module != null).ToString() + ", "
+			//	+ nearbyWingModulesLeftward.Count((FARWingAerodynamicModel module) => module != null).ToString() + ", "
+			//	+ nearbyWingModulesRightward.Count((FARWingAerodynamicModel module) => module != null).ToString());
+
             CompressArrayToList(nearbyWingModulesForward, ref nearbyWingModulesForwardList, ref nearbyWingModulesForwardInfluence);
             CompressArrayToList(nearbyWingModulesBackward, ref nearbyWingModulesBackwardList, ref nearbyWingModulesBackwardInfluence);
             CompressArrayToList(nearbyWingModulesLeftward, ref nearbyWingModulesLeftwardList, ref nearbyWingModulesLeftwardInfluence);
@@ -368,6 +374,10 @@ namespace ferram4
                 ray.origin = rootChordMidPt + (float)((i * 0.2 + 0.1)) * -b_2 * (parentWingPart.transform.right * srfAttachFlipped + parentWingPart.transform.up * (float)Math.Tan(MidChordSweep * FARMathUtil.deg2rad));   //shift the raycast origin along the midchord line
 
                 RaycastHit[] hits = Physics.RaycastAll(ray, MAC, FARAeroUtil.RaycastMask);
+				
+				//Debug.Log("F/B Hits: " + hits.Count((RaycastHit hit) =>
+				//	hit.collider != null && hit.distance > 0 && hit.collider.gameObject.GetComponentInParent<FARWingAerodynamicModel>() != null
+				//	&& hit.collider.gameObject.GetComponentInParent<FARWingAerodynamicModel>() != parentWingModule));
 
                 nearbyWings[i] = ExposureHitDetectionAndWingDetection(hits, vesselPartList, ref exposure, 0.2);
             }
@@ -395,6 +405,10 @@ namespace ferram4
 
                 RaycastHit[] hits = Physics.RaycastAll(ray, b_2, FARAeroUtil.RaycastMask);
 
+				//Debug.Log("L/R Hits: " + hits.Count((RaycastHit hit) => 
+				//	hit.collider != null && hit.distance > 0 && hit.collider.gameObject.GetComponentInParent<FARWingAerodynamicModel>() != null
+				//	&& hit.collider.gameObject.GetComponentInParent<FARWingAerodynamicModel>() != parentWingModule));
+
                 nearbyWings[i] = ExposureHitDetectionAndWingDetection(hits, vesselPartList, ref exposure, 0.2);
             }
             return exposure;
@@ -414,6 +428,10 @@ namespace ferram4
             ray.origin = rootChordMidPt - (MAC * 0.7f) * parentWingPart.transform.up;
 
             RaycastHit[] hits = Physics.RaycastAll(ray.origin, ray.direction, rayCastDist, FARAeroUtil.RaycastMask);
+
+			//Debug.Log("Hits: " + hits.Count((RaycastHit hit) =>
+			//		hit.collider != null && hit.distance > 0 && hit.collider.gameObject.GetComponentInParent<FARWingAerodynamicModel>() != null
+			//		&& hit.collider.gameObject.GetComponentInParent<FARWingAerodynamicModel>() != parentWingModule));
 
             nearbyWings[0] = ExposureHitDetectionAndWingDetection(hits, vesselPartList, ref exposure, 1);
 
@@ -442,11 +460,16 @@ namespace ferram4
                         if (p == null || p == parentWingPart)
                             continue;
 
+						Part partOfCollider = h.collider.GetComponentInParent<Part>();
+						if (partOfCollider == null || partOfCollider == parentWingPart)
+							continue;
+
                         FARPartModule farModule = p.GetComponent<FARPartModule>();
 
                         Collider[] colliders;
 
-                        if ((object)farModule != null)
+                        /*
+						if ((object)farModule != null)
                         {
                             colliders = farModule.PartColliders;
                             if (colliders == null)
@@ -457,7 +480,13 @@ namespace ferram4
                         }
                         else
                             colliders = new Collider[1] { p.collider };
-                        
+                        */
+
+						// I don't know why ferram doesn't use this to look for all colliders of the part.
+						// I don't know if child parts are child gameobjects or not in KSP implementation.
+						colliders = p.gameObject.GetComponentsInChildren<Collider>();
+						//if(farModule != null)
+						//	Debug.Log("Collider count of " + p.partInfo.title + " is: " + colliders.Length.ToString());
 
                         for (int l = 0; l < colliders.Length; l++)
                             if (h.collider == colliders[l] && h.distance > 0)
@@ -627,6 +656,7 @@ namespace ferram4
 
             ARFactor = CalculateARFactor(wingForwardDir, wingRightwardDir);
             hasWingsUpstream = DetermineWingsUpstream(wingForwardDir, wingRightwardDir);
+			//Debug.Log("Wing " + parentWingPart.partInfo.title + " hasWingsUpstream = " + hasWingsUpstream.ToString());
         }
 
         private void UpdateUpstreamValuesFromWingModules(List<FARWingAerodynamicModel> wingModules, List<double> associatedInfluences, double directionalInfluence, double thisWingAoA)

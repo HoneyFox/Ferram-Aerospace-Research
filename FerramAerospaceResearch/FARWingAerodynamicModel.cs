@@ -36,6 +36,7 @@ Copyright 2014, Michael Ferrara, aka Ferram4
 
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -301,7 +302,8 @@ namespace ferram4
         public override void Start()
         {
             base.Start();
-            StartInitialization();
+			StartCoroutine(DelayedInitialization(10)); // Try delay for 10 frames so that it can be called after PWings got updated.
+            
             if(HighLogic.LoadedSceneIsEditor)
             {
                 part.OnEditorAttach += OnWingAttach;
@@ -310,6 +312,16 @@ namespace ferram4
 
             OnVesselPartsChange += UpdateThisWingInteractions;
         }
+
+		private IEnumerator DelayedInitialization(int frames)
+		{ 
+			while(frames > 0)
+			{
+				yield return null;
+				frames--;
+			}
+			StartInitialization();
+		}
 
         public void StartInitialization()
         {
@@ -642,6 +654,9 @@ namespace ferram4
             wingInteraction.UpdateOrientationForInteraction(ParallelInPlaneLocal);
             wingInteraction.CalculateEffectsOfUpstreamWing(AoA, MachNumber, ParallelInPlaneLocal, ref ACweight, ref ACshift, ref ClIncrementFromRear);
             effectiveUpstreamInfluence = wingInteraction.EffectiveUpstreamInfluence;
+
+			//Debug.Log("Wing " + part.partInfo.title + ": effectiveUpstreamInfluence = " + effectiveUpstreamInfluence.ToString("F2"));
+			//Debug.Log("Wing " + part.partInfo.title + ": effectiveUpstreamAoAMax = " + (wingInteraction.EffectiveUpstreamAoAMax * FARMathUtil.rad2deg).ToString("F2"));
 
             if (effectiveUpstreamInfluence > 0)
             {
