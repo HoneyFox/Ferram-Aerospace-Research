@@ -454,19 +454,19 @@ namespace ferram4
                 RaycastHit h = sortedHits[j];
                 if (h.collider != null)
                 {
-                    for (int k = 0; k < vesselPartList.Count; k++)
-                    {
-                        Part p = vesselPartList[k];
-                        if (p == null || p == parentWingPart)
-                            continue;
+					//for (int k = 0; k < vesselPartList.Count; k++)
+					//{
+					//    Part p = vesselPartList[k];
+					//    if (p == null || p == parentWingPart)
+					//        continue;
 
 						Part partOfCollider = h.collider.GetComponentInParent<Part>();
 						if (partOfCollider == null || partOfCollider == parentWingPart)
 							continue;
 
-                        FARPartModule farModule = p.GetComponent<FARPartModule>();
+                        FARPartModule farModule = partOfCollider.GetComponent<FARPartModule>();
 
-                        Collider[] colliders;
+                        //Collider[] colliders;
 
                         /*
 						if ((object)farModule != null)
@@ -484,12 +484,12 @@ namespace ferram4
 
 						// I don't know why ferram doesn't use this to look for all colliders of the part.
 						// I don't know if child parts are child gameobjects or not in KSP implementation.
-						colliders = p.gameObject.GetComponentsInChildren<Collider>();
+						//colliders = p.gameObject.GetComponentsInChildren<Collider>();
 						//if(farModule != null)
 						//	Debug.Log("Collider count of " + p.partInfo.title + " is: " + colliders.Length.ToString());
 
-                        for (int l = 0; l < colliders.Length; l++)
-                            if (h.collider == colliders[l] && h.distance > 0)
+                        //for (int l = 0; l < colliders.Length; l++)
+                            if (/*h.collider == colliders[l] && */ h.distance > 0)
                             {
                                 if (firstHit)
                                 {
@@ -497,22 +497,22 @@ namespace ferram4
                                     firstHit = false;
                                 }
 
-                                FARWingAerodynamicModel hitModule = p.GetComponent<FARWingAerodynamicModel>();
+                                FARWingAerodynamicModel hitModule = partOfCollider.GetComponent<FARWingAerodynamicModel>();
                                 if ((object)hitModule != null)
                                 {
-                                    double tmp = Math.Abs(Vector3.Dot(p.transform.forward, parentWingPart.transform.forward));
+                                    double tmp = Math.Abs(Vector3.Dot(partOfCollider.transform.forward, parentWingPart.transform.forward));
                                     if (tmp > wingInteractionFactor + 0.01)
                                     {
                                         wingInteractionFactor = tmp;
                                         wingHit = hitModule;
                                     }
                                 }
-                                gotSomething = true;
-                                break;
+								gotSomething = true;
+								//break;
                             }
-                        if (gotSomething)
-                            break;
-                    }
+							if (gotSomething)
+								break;
+					//}
                 }
             }
             return wingHit;
