@@ -89,7 +89,7 @@ namespace ferram4
                 return colliders;
             }
             
-            public static Bounds[] GetPartMeshBoundsInPartSpace(this Part part)
+            public static Bounds[] GetPartMeshBoundsInPartSpace(this Part part, int excessiveVerts = 2500)
             {
                 Transform[] transforms = part.FindModelComponents<Transform>();
                 Bounds[] bounds = new Bounds[transforms.Length];
@@ -102,15 +102,20 @@ namespace ferram4
                     MeshFilter mf = t.GetComponent<MeshFilter>();
                     if (mf == null)
                         continue;
-                    Mesh m = mf.mesh;
+                    Mesh m = mf.sharedMesh;
 
                     if (m == null)
                         continue;
                     Matrix4x4 matrix = partMatrix * t.localToWorldMatrix;
-                    
-                    for (int j = 0; j < m.vertices.Length; j++)
+
+                    if (m.vertices.Length < excessiveVerts)
+                        for (int j = 0; j < m.vertices.Length; j++)
+                        {
+                            newBounds.Encapsulate(matrix.MultiplyPoint(m.vertices[j]));
+                        }
+                    else
                     {
-                        newBounds.Encapsulate(matrix.MultiplyPoint(m.vertices[j]));
+                        newBounds.SetMinMax(matrix.MultiplyPoint(m.bounds.min), matrix.MultiplyPoint(m.bounds.max));
                     }
 
                     bounds[i] = newBounds;

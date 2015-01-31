@@ -54,8 +54,7 @@ namespace ferram4
 
 
         private List<Part> FARShieldedParts = new List<Part>();
-        private List<Vector3> minBounds = new List<Vector3>();
-        private List<Vector3> maxBounds = new List<Vector3>();
+        private Bounds fairingBounds;
 
         public override void Start()
         {
@@ -69,17 +68,14 @@ namespace ferram4
         {
             base.OnEditorAttach();
 
-            minBounds.Clear();
-            maxBounds.Clear();
             FindShieldedParts();
         }
 
         [KSPEvent(name = "FairingShapeChanged", active = true, guiActive = false, guiActiveUnfocused = false)]
         public void FairingShapeChanged()
         {
-            minBounds.Clear();
-            maxBounds.Clear();
-            this.PartColliders = part.GetPartColliders();
+            this.TriggerPartColliderUpdate();
+            this.TriggerPartBoundsUpdate();
             FindShieldedParts();
             var d = part.GetComponent<FARBasicDragModel>();
             if (d != null) d.UpdatePropertiesWithShapeChange();
@@ -89,52 +85,34 @@ namespace ferram4
 
         private void CalculatePartBounds(Part p)
         {
-            Vector3 minBoundVec, maxBoundVec;
-            minBoundVec = maxBoundVec = Vector3.zero;
-            Transform[] transformList = FARGeoUtil.PartModelTransformArray(p);
-            for (int i = 0; i < transformList.Length; i++)
+            FARPartModule m = p.GetComponent<FARPartModule>();
+            if(m == null)
+                return;
+            if (p == this.part)
+                for(int i = 0; i < m.PartBounds.Length; i++)
+                    fairingBounds.Encapsulate(m.PartBounds[i]);
+            else
             {
-                Transform t = transformList[i];
-
-                MeshFilter mf = t.GetComponent<MeshFilter>();
-                if ((object)mf == null)
-                    continue;
-                Mesh m = mf.mesh;
-
-                if ((object)m == null)
-                    continue;
-
-                var matrix = part.transform.worldToLocalMatrix * t.localToWorldMatrix;
-
-                for (int j = 0; j < m.vertices.Length; j++)
+                Matrix4x4 matrix = part.transform.worldToLocalMatrix * p.transform.localToWorldMatrix;
+                for(int i = 0; i < m.PartBounds.Length; i++)
                 {
-                    Vector3 v = matrix.MultiplyPoint3x4(m.vertices[j]);
-
-                    maxBoundVec.x = Mathf.Max(maxBoundVec.x, v.x);
-                    minBoundVec.x = Mathf.Min(minBoundVec.x, v.x);
-                    maxBoundVec.y = Mathf.Max(maxBoundVec.y, v.y);
-                    minBoundVec.y = Mathf.Min(minBoundVec.y, v.y);
-                    maxBoundVec.z = Mathf.Max(maxBoundVec.z, v.z);
-                    minBoundVec.z = Mathf.Min(minBoundVec.z, v.z);
+                    Bounds bounds = m.PartBounds[i];
+                    bounds.SetMinMax(matrix.MultiplyPoint(bounds.min), matrix.MultiplyPoint(bounds.max));
+                    fairingBounds.Encapsulate(bounds);
                 }
-                minBoundVec.x *= 1.05f;
-                maxBoundVec.x *= 1.05f;
-                minBoundVec.z *= 1.05f;
-                maxBoundVec.z *= 1.05f;
             }
-            minBounds.Add(minBoundVec);
-            maxBounds.Add(maxBoundVec);
         }
 
 
         private void CalculateFairingBounds()
         {
+            fairingBounds = new Bounds();
             if (part.parent != null)
             {
                 for (int i = 0; i < part.symmetryCounterparts.Count; i++)
                 {
                     Part p = part.symmetryCounterparts[i];
-                    if (p.GetComponent<FARPayloadFairingModule>() != null)
+                    if (p != null && p.GetComponent<FARPayloadFairingModule>() != null)
                     {
                         CalculatePartBounds(p);
                     }
@@ -170,13 +148,10 @@ namespace ferram4
             /*if (HighLogic.LoadedSceneIsEditor/* && FARAeroUtil.EditorAboutToAttach(false) &&
                 !FARAeroUtil.CurEditorParts.Contains(part))
                 return;*/
-            if (minBounds.Count == 0)
-            {
-                CalculateFairingBounds();
-            }
 
             ClearShieldedParts();
             UpdateShipPartsList();
+            CalculateFairingBounds();
 
             Collider[] colliders = this.PartColliders;
             
@@ -212,67 +187,61 @@ namespace ferram4
                 }
 
                 relPos = this.part.transform.worldToLocalMatrix.MultiplyVector(relPos);
-                for (int j = 0; j < minBounds.Count; j++)
+
+                Vector3 fairingCenter = fairingBounds.center;
+                fairingCenter *= 0.5f;
+                fairingCenter = this.part.transform.localToWorldMatrix.MultiplyVector(fairingCenter);
+                fairingCenter += this.part.transform.position;
+
+                if (fairingBounds.Contains(relPos))
                 {
-                    Vector3 minBoundVec, maxBoundVec;
-                    minBoundVec = minBounds[j];
-                    maxBoundVec = maxBounds[j];
-
-                    Vector3 fairingCenter = maxBoundVec + minBoundVec;
-                    fairingCenter *= 0.5f;
-                    fairingCenter = this.part.transform.localToWorldMatrix.MultiplyVector(fairingCenter);
-                    fairingCenter += this.part.transform.position;
-
-                    if (relPos.x < maxBoundVec.x && relPos.y < maxBoundVec.y && relPos.z < maxBoundVec.z && relPos.x > minBoundVec.x && relPos.y > minBoundVec.y && relPos.z > minBoundVec.z)
-                    {
                         
-                        Vector3 vecFromPToPFCenter;
-                        Vector3 origin;
-                        if (w)
-                            origin = w.WingCentroid();
-                        else
-                            origin = p.transform.position;
+                    Vector3 vecFromPToPFCenter;
+                    Vector3 origin;
+                    if (w)
+                        origin = w.WingCentroid();
+                    else
+                        origin = p.transform.position;
 
-                        vecFromPToPFCenter = fairingCenter - origin;
+                    vecFromPToPFCenter = fairingCenter - origin;
 
-                        RaycastHit[] hits = Physics.RaycastAll(origin, vecFromPToPFCenter, vecFromPToPFCenter.magnitude, FARAeroUtil.RaycastMask);
+                    RaycastHit[] hits = Physics.RaycastAll(origin, vecFromPToPFCenter, vecFromPToPFCenter.magnitude, FARAeroUtil.RaycastMask);
 
-                        bool outsideMesh = false;
+                    bool outsideMesh = false;
 
-                        for (int k = 0; k < hits.Length; k++)
+                    for (int k = 0; k < hits.Length; k++)
+                    {
+                        if (colliders.Contains(hits[k].collider))
                         {
-                            if (colliders.Contains(hits[k].collider))
-                            {
-                                outsideMesh = true;
-                                break;
-                            }
+                            outsideMesh = true;
+                            break;
                         }
-                        if (outsideMesh)
-                            continue;
+                    }
+                    if (outsideMesh)
+                        continue;
 
-                        FARShieldedParts.Add(p);
+                    FARShieldedParts.Add(p);
+                    if (b)
+                    {
+                        b.ActivateShielding();
+                        //print("Shielded: " + p.partInfo.title);
+                    }
+                    for (int k = 0; k < p.symmetryCounterparts.Count; k++)
+                    {
+                        Part q = p.symmetryCounterparts[k];
+
+                        if (q == null)
+                            continue;
+                        FARShieldedParts.Add(q);
+                        b = q.GetComponent<FARBaseAerodynamics>();
                         if (b)
                         {
                             b.ActivateShielding();
                             //print("Shielded: " + p.partInfo.title);
                         }
-                        for (int k = 0; k < p.symmetryCounterparts.Count; k++)
-                        {
-                            Part q = p.symmetryCounterparts[k];
-
-                            if (q == null)
-                                continue;
-                            FARShieldedParts.Add(q);
-                            b = q.GetComponent<FARBaseAerodynamics>();
-                            if (b)
-                            {
-                                b.ActivateShielding();
-                                //print("Shielded: " + p.partInfo.title);
-                            }
-                        }
-                        break;
                     }
                 }
+                
             }
             partsShielded = FARShieldedParts.Count;
         }
@@ -285,6 +254,7 @@ namespace ferram4
 
         public void OnRescale(TweakScale.ScalingFactor factor)
         {
+            Debug.Log("Rescaled Fairing");
             FairingShapeChanged();
         }
     }
