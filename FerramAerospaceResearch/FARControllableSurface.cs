@@ -105,6 +105,10 @@ namespace ferram4
 		[KSPField(guiName = "AoA %", isPersistant = true, guiActiveEditor = true, guiActive = false)]
 		public float pitchaxisDueToAoA = 0.0f;
 
+		[UI_FloatRange(maxValue = 100.0f, minValue = -100f, scene = UI_Scene.Editor, stepIncrement = 5f)]
+		[KSPField(guiName = "BrakeRudder %", isPersistant = true, guiActiveEditor = true, guiActive = false)]
+		public float brakeRudder = 0.0f;
+
         [UI_FloatRange(maxValue = 80, minValue = -80, scene = UI_Scene.Editor, stepIncrement = 0.5f)]
         [KSPField(guiName = "Ctrl Dflct", isPersistant = true)]
         public float maxdeflect = 15;
@@ -127,6 +131,8 @@ namespace ferram4
         protected double PitchLocation = 0;
         protected double YawLocation = 0;
         protected double RollLocation = 0;
+		protected double BrakeRudderLocation = 0;
+		protected double BrakeRudderSide = 0;
         protected int flapLocation = 0;
 
         private double AoAsign = 1;
@@ -328,6 +334,8 @@ namespace ferram4
                     YawLocation = -Vector3.Dot(part.transform.forward, EditorLogic.RootPart.transform.right) * Math.Sign(Vector3.Dot(CoMoffset, EditorLogic.RootPart.transform.up));
                     RollLocation = Vector3.Dot(part.transform.forward, EditorLogic.RootPart.transform.forward) * Math.Sign(Vector3.Dot(CoMoffset, -EditorLogic.RootPart.transform.right));
                     roll2 = Vector3.Dot(part.transform.forward, EditorLogic.RootPart.transform.right) * Math.Sign(Vector3.Dot(CoMoffset, EditorLogic.RootPart.transform.forward));
+                    BrakeRudderLocation = Vector3.Dot(part.transform.forward, EditorLogic.RootPart.transform.forward);
+                    BrakeRudderSide = Mathf.Sign(Vector3.Dot(CoMoffset, EditorLogic.RootPart.transform.right));
                     AoAsign = Math.Sign(Vector3.Dot(part.transform.up, EditorLogic.RootPart.transform.up));
                 }
                 else
@@ -338,6 +346,8 @@ namespace ferram4
                     YawLocation = -Vector3.Dot(part.transform.forward, vessel.ReferenceTransform.right) * Math.Sign(Vector3.Dot(CoMoffset, vessel.ReferenceTransform.up));
                     RollLocation = Vector3.Dot(part.transform.forward, vessel.ReferenceTransform.forward) * Math.Sign(Vector3.Dot(CoMoffset, -vessel.ReferenceTransform.right));
                     roll2 = Vector3.Dot(part.transform.forward, vessel.ReferenceTransform.right) * Math.Sign(Vector3.Dot(CoMoffset, vessel.ReferenceTransform.forward));
+                    BrakeRudderLocation = Vector3.Dot(part.transform.forward, vessel.ReferenceTransform.forward);
+                    BrakeRudderSide = Mathf.Sign(Vector3.Dot(CoMoffset, vessel.ReferenceTransform.right));
                     AoAsign = Math.Sign(Vector3.Dot(part.transform.up, vessel.ReferenceTransform.up));
                 }
                 //PitchLocation *= PitchLocation * Mathf.Sign(PitchLocation);
@@ -386,6 +396,10 @@ namespace ferram4
                 {
 					AoAdesiredControl += RollLocation * vessel.ctrlState.roll * rollaxis * 0.01;
                 }
+				if (brakeRudder != 0.0)
+				{
+					AoAdesiredControl += BrakeRudderLocation * Math.Max(0.0, BrakeRudderSide * vessel.ctrlState.yaw) * brakeRudder * 0.01;
+				}
                 AoAdesiredControl *= maxdeflect;
                 if (pitchaxisDueToAoA != 0.0)
 				{ 
@@ -511,6 +525,8 @@ namespace ferram4
                 PitchLocation = Vector3.Dot(part.transform.forward, EditorLogic.RootPart.transform.forward) * Mathf.Sign(Vector3.Dot(CoMoffset, EditorLogic.RootPart.transform.up));
                 YawLocation = -Vector3.Dot(part.transform.forward, EditorLogic.RootPart.transform.right) * Mathf.Sign(Vector3.Dot(CoMoffset, EditorLogic.RootPart.transform.up));
                 RollLocation = Vector3.Dot(part.transform.forward, EditorLogic.RootPart.transform.forward) * Mathf.Sign(Vector3.Dot(CoMoffset, -EditorLogic.RootPart.transform.right));
+				BrakeRudderLocation = Vector3.Dot(part.transform.forward, EditorLogic.RootPart.transform.forward);
+				BrakeRudderSide = Mathf.Sign(Vector3.Dot(CoMoffset, EditorLogic.RootPart.transform.right));
                 AoAsign = Math.Sign(Vector3.Dot(part.transform.up, EditorLogic.RootPart.transform.up));
                 AoAdesiredControl = 0;
                 if (pitchaxis != 0.0)
@@ -602,6 +618,7 @@ namespace ferram4
             FixWrongUIRange("pitchaxis", 100, -100);
             FixWrongUIRange("yawaxis", 100, -100);
             FixWrongUIRange("rollaxis", 100, -100);
+			FixWrongUIRange("brakeRudder", 100, -100);
             FixWrongUIRange("maxdeflect", 80, -80);
             FixWrongUIRange("maxdeflectFlap", 85, -85);
         }
