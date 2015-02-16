@@ -321,7 +321,13 @@ namespace ferram4
             FARControlSys.kd_wingleveler = Convert.ToDouble(FARControlSys.kd_wingleveler_str);
             FARControlSys.k_yawdamper_str = config.GetValue("k_yawdamper", "0.1");
             FARControlSys.k_yawdamper = Convert.ToDouble(FARControlSys.k_yawdamper_str);
-            FARControlSys.k_pitchdamper_str = config.GetValue("k_pitchdamper", "0.1");
+			FARControlSys.kp_yawcontroller_str = config.GetValue("kp_yawcontroller", "0.1");
+			FARControlSys.kp_yawcontroller = Convert.ToDouble(FARControlSys.kp_yawcontroller_str);
+			FARControlSys.k_rollyawconverter_str = config.GetValue("k_rollyawconverter", "0.06");
+			FARControlSys.k_rollyawconverter = Convert.ToDouble(FARControlSys.k_rollyawconverter_str);
+			FARControlSys.scale_rollyawconverter_str = config.GetValue("scale_rollyawconverter_str", "80");
+			FARControlSys.scale_rollyawconverter = Convert.ToDouble(FARControlSys.scale_rollyawconverter_str);
+			FARControlSys.k_pitchdamper_str = config.GetValue("k_pitchdamper", "0.1");
             FARControlSys.k_pitchdamper = Convert.ToDouble(FARControlSys.k_pitchdamper_str);
 			FARControlSys.k2_pitchdamper_str = config.GetValue("k2_pitchdamper", "0.03");
 			FARControlSys.k2_pitchdamper = Convert.ToDouble(FARControlSys.k2_pitchdamper_str);
@@ -382,6 +388,9 @@ namespace ferram4
             config.SetValue("k_wingleveler", (FARControlSys.k_wingleveler).ToString());
             config.SetValue("kd_wingleveler", (FARControlSys.kd_wingleveler).ToString());
             config.SetValue("k_yawdamper", (FARControlSys.k_yawdamper).ToString());
+			config.SetValue("kp_yawcontroller", (FARControlSys.kp_yawcontroller).ToString());
+			config.SetValue("k_rollyawconverter", (FARControlSys.k_rollyawconverter).ToString());
+			config.SetValue("scale_rollyawconverter", (FARControlSys.scale_rollyawconverter).ToString());
 			config.SetValue("k_pitchdamper", (FARControlSys.k_pitchdamper).ToString());
 			config.SetValue("k2_pitchdamper", (FARControlSys.k2_pitchdamper).ToString());
             config.SetValue("scaleVelocity", (FARControlSys.scaleVelocity).ToString());

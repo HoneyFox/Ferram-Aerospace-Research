@@ -86,8 +86,16 @@ namespace ferram4
         private static bool YawDamperOn = false;
         public static string k_yawdamper_str = "0.1";
         public static double k_yawdamper = 0.1;
+		public static string kp_yawcontroller_str = "0.1";
+		public static double kp_yawcontroller = 0.1;
 
         private static double lastBeta = 0;
+
+		private static bool RollYawConverter = false;
+		public static string k_rollyawconverter_str = "0.06";
+		public static double k_rollyawconverter = 0.06;
+		public static string scale_rollyawconverter_str = "40";
+		public static double scale_rollyawconverter = 80;
 
         private static bool PitchDamperOn = false;
         public static string k_pitchdamper_str = "0.1";
@@ -945,10 +953,25 @@ namespace ferram4
 
             GUILayout.Box("Yaw Damper", mySty, GUILayout.ExpandWidth(true));
             GUILayout.BeginHorizontal(GUILayout.ExpandWidth(true));
-            GUILayout.Label("k:", GUILayout.Width(30));
+			GUILayout.Label("kp:", GUILayout.Width(30));
+			kp_yawcontroller_str = GUILayout.TextField(kp_yawcontroller_str, GUILayout.ExpandWidth(true));
+			kp_yawcontroller_str = Regex.Replace(kp_yawcontroller_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+            GUILayout.Label("kd:", GUILayout.Width(30));
             k_yawdamper_str = GUILayout.TextField(k_yawdamper_str, GUILayout.ExpandWidth(true));
             k_yawdamper_str = Regex.Replace(k_yawdamper_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
             GUILayout.EndHorizontal();
+
+
+			GUILayout.Box("Roll Yaw Converter", mySty, GUILayout.ExpandWidth(true));
+			GUILayout.BeginHorizontal(GUILayout.ExpandWidth(true));
+			GUILayout.Label("k:", GUILayout.Width(30));
+			k_rollyawconverter_str = GUILayout.TextField(k_rollyawconverter_str, GUILayout.ExpandWidth(true));
+			k_rollyawconverter_str = Regex.Replace(k_rollyawconverter_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.Label("Scale:", GUILayout.Width(60)); 
+			scale_rollyawconverter_str = GUILayout.TextField(scale_rollyawconverter_str, GUILayout.ExpandWidth(true));
+			scale_rollyawconverter_str = Regex.Replace(scale_rollyawconverter_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.EndHorizontal();
+
 
             GUILayout.Box("Pitch Damper", mySty, GUILayout.ExpandWidth(true));
             GUILayout.BeginHorizontal(GUILayout.ExpandWidth(true));
@@ -1041,6 +1064,9 @@ namespace ferram4
                 k_wingleveler = Convert.ToDouble(k_wingleveler_str);
                 kd_wingleveler = Convert.ToDouble(kd_wingleveler_str);
                 k_yawdamper = Convert.ToDouble(k_yawdamper_str);
+				kp_yawcontroller = Convert.ToDouble(kp_yawcontroller_str);
+				k_rollyawconverter = Convert.ToDouble(k_rollyawconverter_str);
+				scale_rollyawconverter = Convert.ToDouble(scale_rollyawconverter_str);
                 k_pitchdamper = Convert.ToDouble(k_pitchdamper_str);
 				k2_pitchdamper = Convert.ToDouble(k2_pitchdamper_str);
                 upperLim = Convert.ToDouble(upperLim_str);
@@ -1160,7 +1186,8 @@ namespace ferram4
                 GUILayout.BeginHorizontal(GUILayout.ExpandWidth(true));
                 WingLevelerOn = GUILayout.Toggle(WingLevelerOn, "Lvl", mytoggle, GUILayout.MinWidth(30));
                 YawDamperOn = GUILayout.Toggle(YawDamperOn, "Yaw", mytoggle, GUILayout.MinWidth(30));
-                PitchDamperOn = GUILayout.Toggle(PitchDamperOn, "Pitch", mytoggle, GUILayout.ExpandWidth(true));
+				RollYawConverter = GUILayout.Toggle(RollYawConverter, "RYC", mytoggle, GUILayout.MinWidth(30));
+				PitchDamperOn = GUILayout.Toggle(PitchDamperOn, "Pitch", mytoggle, GUILayout.ExpandWidth(true));
                 AoALimiter = GUILayout.Toggle(AoALimiter, "AoA", mytoggle, GUILayout.MinWidth(30));
                 ControlReducer = GUILayout.Toggle(ControlReducer, "DCA", mytoggle, GUILayout.MinWidth(30));
 				PitchAoAController = GUILayout.Toggle(PitchAoAController, "PAC", mytoggle, GUILayout.MinWidth(30));
@@ -1544,6 +1571,14 @@ namespace ferram4
             double ctrlTimeConst = FARControllableSurface.timeConstant * recipDt;
 
 			double rollRate = 0;
+ 
+			bool inputingYaw = (Math.Abs(state.yaw - state.yawTrim) >= 0.01);
+			if (RollYawConverter)
+			{
+				double tweakFactor = Math.Atan(AoA * k_rollyawconverter) / Math.Min(Math.PI, Math.Abs(scale_rollyawconverter * FARMathUtil.deg2rad));
+				state.yaw += state.roll * Mathf.Clamp((float)tweakFactor, -1.0f, 1.0f);
+				state.roll *= (1.0f - Mathf.Clamp01((float)Math.Abs(tweakFactor)));
+			}
 
 			if (WingLevelerOn || CounterInertiaCouplingSystem)
             {
@@ -1590,18 +1625,25 @@ namespace ferram4
                 double beta = (yaw * FARMathUtil.deg2rad + 0.5 * lastBeta) * 0.66666667;
                 double d_beta = (beta - lastBeta) * recipDt;
                 //float dd_beta =  (d_beta - lastD_beta)/ dt;
-                if (Math.Abs(state.yaw - state.yawTrim) < 0.01)
-                {
-                    tmp = k_yawdamper * d_beta;// +k_yawdamper / 5 * dd_beta;
-                    tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
+                
+				tmp = k_yawdamper * d_beta;// +k_yawdamper / 5 * dd_beta;
+                tmp = tmp * ctrlTimeConst / (1 - Math.Abs(tmp) * ctrlTimeConst);
 
-					// Avoid shaky control surfaces if the velocity is too small to calculate stable Beta.
-					Vector3d vel = this.GetVelocity();
-					if (vel.magnitude < 0.5)
-						tmp = 0;
+				tmp += kp_yawcontroller * beta * FARMathUtil.rad2deg;
 
-                    state.yaw = (float)FARMathUtil.Clamp(state.yaw + tmp, -1, 1);
-                }
+				// Avoid shaky control surfaces if the velocity is too small to calculate stable Beta.
+				Vector3d vel = this.GetVelocity();
+				if (vel.magnitude < 0.5)
+					tmp = 0;
+
+				if (inputingYaw == false)
+				{
+					state.yaw = (float)FARMathUtil.Clamp(state.yaw + tmp, -1, 1);
+				}
+				else
+				{
+					state.yaw = (float)FARMathUtil.Clamp(state.yaw + tmp * 0.5, -1, 1);
+				}
                 lastBeta = beta;
                 //lastD_beta = d_beta;
             }
@@ -1753,11 +1795,15 @@ namespace ferram4
 
             if (AoALimiter)
             {
-                if (AoA > upperLim)
-                    state.pitch = (float)FARMathUtil.Clamp(state.pitch - k_limiter * (AoA - upperLim), -1, 1);
-                else if (AoA < lowerLim)
-                    state.pitch = (float)FARMathUtil.Clamp(state.pitch + k_limiter * (lowerLim - AoA), -1, 1);
-            }
+				Vector3d vel = this.GetVelocity();
+				if (vel.magnitude >= 0.5)
+				{
+					if (AoA > upperLim)
+						state.pitch = (float)FARMathUtil.Clamp(state.pitch - k_limiter * (AoA - upperLim), -1, 1);
+					else if (AoA < lowerLim)
+						state.pitch = (float)FARMathUtil.Clamp(state.pitch + k_limiter * (lowerLim - AoA), -1, 1);
+				}
+			}
             if (ControlReducer)
             {
                 double std_q = FlightGlobals.getAtmDensity(FlightGlobals.getStaticPressure(alt, activeControlSys.vessel.mainBody)) * scaleVelocity * scaleVelocity * 0.5;

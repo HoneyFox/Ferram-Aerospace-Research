@@ -135,6 +135,9 @@ namespace ferram4
         public double YmaxForce = double.MaxValue;
         public double XZmaxForce = double.MaxValue;
 
+		[KSPField(isPersistant = false, guiActive = true, guiName = "Alpha")]
+		protected string currentAoA = "0.00 (+0.00)";
+
         #region GetFunctions
 
         public double GetStall()
@@ -422,6 +425,7 @@ namespace ferram4
         public virtual void FixedUpdate()
         {
             currentLift = currentDrag = 0;
+			currentAoA = "0.00 (+0.00)";
 
             // With unity objects, "foo" or "foo != null" calls a method to check if
             // it's destroyed. (object)foo != null just checks if it is actually null.
@@ -641,33 +645,33 @@ namespace ferram4
         #region Interactive Effects
 
         //Calculates camber and flap effects due to wing interactions
-        private void CalculateWingCamberInteractions(double MachNumber, double AoA, out double ACshift, out double ACweight)
+        private void CalculateWingCamberInteractions(double MachNumber, double AoA, out double ACshift, out double ACweight, out double AoAAffectedByUpstream)
         {
             ACshift = 0;
             ACweight = 0;
             ClIncrementFromRear = 0;
 
             AoAmax = 0;
-            double effectiveUpstreamInfluence = 0;
+			AoAAffectedByUpstream = 0.0;
+			double effectiveUpstreamInfluence = 0;
 
 
             wingInteraction.UpdateOrientationForInteraction(ParallelInPlaneLocal);
             wingInteraction.CalculateEffectsOfUpstreamWing(AoA, MachNumber, ParallelInPlaneLocal, ref ACweight, ref ACshift, ref ClIncrementFromRear);
             effectiveUpstreamInfluence = wingInteraction.EffectiveUpstreamInfluence;
 
-			//Debug.Log("Wing " + part.partInfo.title + ": effectiveUpstreamInfluence = " + effectiveUpstreamInfluence.ToString("F2"));
-			//Debug.Log("Wing " + part.partInfo.title + ": effectiveUpstreamAoAMax = " + (wingInteraction.EffectiveUpstreamAoAMax * FARMathUtil.rad2deg).ToString("F2"));
-
-            if (effectiveUpstreamInfluence > 0)
+			if (effectiveUpstreamInfluence > 0)
             {
-                effectiveUpstreamInfluence = wingInteraction.EffectiveUpstreamInfluence;
+				effectiveUpstreamInfluence = wingInteraction.EffectiveUpstreamInfluence;
 
-                AoAmax = wingInteraction.EffectiveUpstreamAoAMax;
+				AoAmax = 0.0; // wingInteraction.EffectiveUpstreamAoAMax;
                 liftslope *= (1 - effectiveUpstreamInfluence);
                 liftslope += wingInteraction.EffectiveUpstreamLiftSlope;
 
                 cosSweepAngle *= (1 - effectiveUpstreamInfluence);
                 cosSweepAngle += wingInteraction.EffectiveUpstreamCosSweepAngle;
+
+				AoAAffectedByUpstream = wingInteraction.EffectiveUpstreamAoAMax;
             }
             AoAmax += CalculateAoAmax(MachNumber);
         }
@@ -682,9 +686,14 @@ namespace ferram4
 
             stall = 0;
 
-            CalculateWingCamberInteractions(MachNumber, AoA, out ACshift, out ACweight);
+			double aoaAffectedByUpstream = 0.0;
+            CalculateWingCamberInteractions(MachNumber, AoA, out ACshift, out ACweight, out aoaAffectedByUpstream);
 
-            double absAoA = Math.Abs(AoA);
+			double side = Math.Sign(Vector3.Dot(part.transform.forward,
+					(HighLogic.LoadedSceneIsFlight ? vessel.ReferenceTransform.forward : EditorLogic.RootPart.transform.forward)));
+			currentAoA = (AoA * side * FARMathUtil.rad2deg).ToString("F2") + " " + (aoaAffectedByUpstream * side > 0 ? "(-" + (aoaAffectedByUpstream * side * FARMathUtil.rad2deg).ToString("F2") + ")" : "(+" + (-aoaAffectedByUpstream * side * FARMathUtil.rad2deg).ToString("F2") + ")");
+            
+			double absAoA = Math.Abs(AoA - aoaAffectedByUpstream);
 
             if (absAoA > AoAmax)
             {
@@ -692,9 +701,9 @@ namespace ferram4
                 stall = Math.Max(stall, lastStall);
                 stall += effectiveUpstreamStall;
             }
-            else if (absAoA < AoAmax * 0.8)
+            else if (absAoA < AoAmax * 0.9) // FIXME_HoneyFox: Wondering if this can make stall recovery earlier.
             {
-                stall = 1 - FARMathUtil.Clamp((AoAmax * 0.75 - absAoA) * 20, 0, 1);
+                stall = 1 - FARMathUtil.Clamp((AoAmax * 0.85 - absAoA) * 20, 0, 1);
                 stall = Math.Min(stall, lastStall);
                 stall += effectiveUpstreamStall;
             }
@@ -827,12 +836,12 @@ namespace ferram4
 
             //AC shift due to stall
             if (stall > 0)
-                ACShiftVec -= 0.75 / criticalCl * MAC * Math.Abs(Cl) * stall * ParallelInPlane * CosAoA;
+                ACShiftVec -= 0.75 / criticalCl * MAC * Math.Abs(Cl) * stall * ParallelInPlane * (0.666667 * CosAoA + 0.333333);
 
             Cl -= Cl * stall * 0.769;
             Cd += Cd * stall * 3;
             //double SinAoA = Math.Sqrt(FARMathUtil.Clamp(1 - CosAoA * CosAoA, 0, 1));
-            Cd = Math.Max(Cd, CdMax * (1 - CosAoA * CosAoA));
+            Cd = Math.Max(Cd, CdMax * Math.Pow(1 - CosAoA * CosAoA, 2.0));
 
 
             AerodynamicCenter = AerodynamicCenter + ACShiftVec;

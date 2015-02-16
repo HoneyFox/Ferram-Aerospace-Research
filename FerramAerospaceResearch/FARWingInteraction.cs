@@ -661,13 +661,17 @@ namespace ferram4
 
         private void UpdateUpstreamValuesFromWingModules(List<FARWingAerodynamicModel> wingModules, List<double> associatedInfluences, double directionalInfluence, double thisWingAoA)
         {
-            for (int i = 0; i < wingModules.Count; i++)
+			double thisWingSide = Math.Sign(Vector3.Dot(parentWingModule.transform.forward,
+					(HighLogic.LoadedSceneIsFlight ? parentWingModule.vessel.ReferenceTransform.forward : EditorLogic.RootPart.transform.forward)));
+			double thisWingActualAoA = thisWingAoA * thisWingSide; 
+			
+			for (int i = 0; i < wingModules.Count; i++)
             {
                 FARWingAerodynamicModel wingModule = wingModules[i];
                 double wingInfluenceFactor = associatedInfluences[i] * directionalInfluence;
 
                 double tmp = Vector3.Dot(wingModule.transform.forward, parentWingModule.transform.forward);
-
+                
                 effectiveUpstreamMAC += wingModule.GetMAC() * wingInfluenceFactor;
                 effectiveUpstreamb_2 += wingModule.Getb_2() * wingInfluenceFactor;
                 effectiveUpstreamArea += wingModule.S * wingInfluenceFactor;
@@ -675,16 +679,35 @@ namespace ferram4
                 effectiveUpstreamLiftSlope += wingModule.GetLiftSlope() * wingInfluenceFactor;
                 effectiveUpstreamStall += wingModule.GetStall() * wingInfluenceFactor;
                 effectiveUpstreamCosSweepAngle += wingModule.GetCosSweepAngle() * wingInfluenceFactor;
-                effectiveUpstreamAoAMax += wingModule.AoAmax * wingInfluenceFactor;
+
+				// FIXME_HoneyFox: Rework of air flow direction due to wing interaction.
+				// LEF should bend the air-flow which will affect the local AoA of the main wing.
+				// main wing should bend the air-flow and affect the local AoA of TEF.
+				
+				double wActualAoA = wingModule.CalculateAoA(wingModule.GetVelocity()) * Math.Sign(Vector3.Dot(wingModule.transform.forward,
+					(HighLogic.LoadedSceneIsFlight ? wingModule.vessel.ReferenceTransform.forward : EditorLogic.RootPart.transform.forward)));
+				
+				//Debug.Log("Upstream: " + wingModule.part.partInfo.title
+				//	+ " wActualAoA: " + (wActualAoA * FARMathUtil.rad2deg).ToString("F2")
+				//	+ " thisWingActualAoA: " + (thisWingActualAoA * FARMathUtil.rad2deg).ToString("F2")
+				//	+ " wStall: " + wingModule.GetStall().ToString("F2")
+				//	+ " upS/selfS: " + wingModule.S.ToString("F2") + "/" + parentWingModule.S.ToString("F2")
+				//	+ " thisWingSide: " + thisWingSide.ToString());
+				
+				//effectiveUpstreamAoAMax += wingModule.AoAmax * wingInfluenceFactor;
+				double airFlowBendCoeff = Math.Sin(wActualAoA) * Math.Abs(thisWingActualAoA - wActualAoA);
+				effectiveUpstreamAoAMax += Math.Sign(airFlowBendCoeff) * Math.Sqrt(Math.Abs(airFlowBendCoeff)) * (1.0 - wingModule.GetStall() * 0.8) * wingInfluenceFactor * Math.Min(1.0, Math.Sqrt(wingModule.S / parentWingModule.S / 2.0))
+					* thisWingSide;
+				
                 effectiveUpstreamCd0 += wingModule.GetCd0() * wingInfluenceFactor;
                 effectiveUpstreamInfluence += wingInfluenceFactor;
 
-                double wAoA = wingModule.CalculateAoA(wingModule.GetVelocity()) * Math.Sign(tmp);
-                tmp = (thisWingAoA - wAoA) * wingInfluenceFactor;                //First, make sure that the AoA are wrt the same direction; then account for any strange angling of the part that shouldn't be there
+				double wAoA = wingModule.CalculateAoA(wingModule.GetVelocity()) * Math.Sign(tmp);
+				tmp = (thisWingAoA - wAoA) * wingInfluenceFactor;                //First, make sure that the AoA are wrt the same direction; then account for any strange angling of the part that shouldn't be there
 
                 effectiveUpstreamAoA += tmp;
             }
-        }
+		}
 
         /// <summary>
         /// Calculates effect of nearby wings on the effective aspect ratio multiplier of this wing
