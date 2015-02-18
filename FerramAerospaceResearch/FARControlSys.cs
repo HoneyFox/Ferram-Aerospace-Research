@@ -125,9 +125,11 @@ namespace ferram4
 		public static string lowerLim_pac_str = "-5";
 		public static double lowerLim_pac = -5;
 		public static string k_pac_str = "0.12";
-		public static double k_pac = 0.5;
+		public static double k_pac = 0.12;
 		public static string kd_pac_str = "0.06";
-		public static double kd_pac = 0.2;
+		public static double kd_pac = 0.02;
+		public static string ki_pac_str = "1.5";
+		public static double ki_pac = 1.5;
 		public static string kc_pac_str = "0.0";
 		public static double kc_pac = 0.0;
 		private static bool CounterInertiaCouplingSystem = true;
@@ -145,6 +147,10 @@ namespace ferram4
 		public static double lastFakeAoA = 0.0;
 		public static double lastAoA = 0.0;
 		public static double lastDAoA = 0.0;
+
+		public static double lastPACIntegrateSum = 0.0;
+		public static double lastPACIntegrate = 0.0;
+		public static double lastPACKiScale = 1.0;
 
         private static double lastDt = 1;
 
@@ -1038,6 +1044,9 @@ namespace ferram4
 			GUILayout.Label("k:", GUILayout.Width(25));
 			k_pac_str = GUILayout.TextField(k_pac_str, GUILayout.ExpandWidth(true));
 			k_pac_str = Regex.Replace(k_pac_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
+			GUILayout.Label("ki:", GUILayout.Width(25));
+			ki_pac_str = GUILayout.TextField(ki_pac_str, GUILayout.ExpandWidth(true));
+			ki_pac_str = Regex.Replace(ki_pac_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
 			GUILayout.Label("kd:", GUILayout.Width(25));
 			kd_pac_str = GUILayout.TextField(kd_pac_str, GUILayout.ExpandWidth(true));
 			kd_pac_str = Regex.Replace(kd_pac_str, @"[^-?[0-9]*(\.[0-9]*)?]", "");
@@ -1076,6 +1085,7 @@ namespace ferram4
 				lowerLim_pac = Convert.ToDouble(lowerLim_pac_str);
 				k_pac = Convert.ToDouble(k_pac_str);
 				kd_pac = Convert.ToDouble(kd_pac_str);
+				ki_pac = Convert.ToDouble(ki_pac_str);
 				kc_pac = Convert.ToDouble(kc_pac_str);
 				k_cics = Convert.ToDouble(k_cics_str);
 				threshold_cics = Convert.ToDouble(threshold_cics_str);
@@ -1652,10 +1662,31 @@ namespace ferram4
 			if (PitchAoAController)
 			{
 				double desiredAlpha;
+
+				double pacGUpperScale = 1.0;
+				double pacGLowerScale = 1.0;
+
+				if (ControlReducer)
+				{
+					double std_q = FlightGlobals.getAtmDensity(FlightGlobals.getStaticPressure(alt, vessel.mainBody)) * scaleVelocity * scaleVelocity * 0.5;
+					double scaleFactor = std_q / activeControlSys.q;
+
+					// Transit to g command if G at max alpha exceeds 12G.
+					if (std_aoa * scaleFactor * (12.0 + (AutoTrimmer ? -1.0 : 0.0)) < Math.Min(upperLim_pac, 50.0))
+					{
+						pacGUpperScale = std_aoa * scaleFactor * (12.0 + (AutoTrimmer ? -1.0 : 0.0)) / upperLim_pac;
+					}
+					// Transit to g command if G at min alpha exceeds -2G.
+					if (std_aoa * scaleFactor * (-2.0 + (AutoTrimmer ? -1.0 : 0.0)) > Math.Max(lowerLim_pac, -50.0))
+					{
+						pacGLowerScale = std_aoa * scaleFactor * (-2.0 + (AutoTrimmer ? -1.0 : 0.0)) / lowerLim_pac;
+					}
+				}
+
 				if (state.pitch >= 0)
-					desiredAlpha = state.pitch * Math.Abs(upperLim_pac);
+					desiredAlpha = state.pitch * Math.Abs(upperLim_pac * pacGUpperScale);
 				else
-					desiredAlpha = state.pitch * Math.Abs(lowerLim_pac);
+					desiredAlpha = state.pitch * Math.Abs(lowerLim_pac * pacGLowerScale);
 
 				if (AutoTrimmer)
 				{
@@ -1664,7 +1695,7 @@ namespace ferram4
 					double scaleFactor = std_q / activeControlSys.q;
 
 					// Gradually transit to full AutoTrim in between 15m ~ 40m AGL.
-					// Maximum trimmed AoA is 0.5 * upper limit of PAC.
+					// Maximum trimmed AoA is 0.75 * upper limit of PAC.
 
 					double ASL = vessel.mainBody.GetAltitude(vessel.CoM);
 
@@ -1686,29 +1717,38 @@ namespace ferram4
 				// Add fake AoA if roll rate is faster than threshold value of CICS so that PAC will try to reduce AoA to avoid roll departure.
 				if (CounterInertiaCouplingSystem)
 				{
+					double fakeAoA = 0;
 					// If the aircraft is near the limit of AoA.
 					if ((alpha > 0 && alpha > Math.Abs(upperLim_pac) * 0.75) || (alpha < 0 && alpha < -Math.Abs(lowerLim_pac) * 0.75))
 					{
 						if (Math.Abs(rollRate) > 0)
 						{
 							double exceededAoA = alpha < 0 ? (alpha - (-Math.Abs(lowerLim_pac) * 0.75)) : (alpha - Math.Abs(upperLim_pac) * 0.75);
-							double fakeAoA = 0;
 							if (Math.Abs(rollRate) > Math.Abs(threshold_cics))
 								fakeAoA = (Math.Abs(rollRate) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * exceededAoA;
 							if (Math.Abs(rollRate) > Math.Abs(limit_cics))
 								fakeAoA = (Math.Abs(limit_cics) - Math.Abs(threshold_cics)) * Math.Abs(k_cics) * exceededAoA;
 
-							lastFakeAoA = fakeAoA * 0.333333 + lastFakeAoA * 0.666667;
-							alpha += lastFakeAoA;
+							
 						}
 					}
+					lastFakeAoA = fakeAoA * 0.333333 + lastFakeAoA * 0.666667;
+					alpha += lastFakeAoA;
 				}
 
 				double error;
 				double d_AoA;
 
 				//Debug.Log("desiredAlpha = " + desiredAlpha.ToString("F2") + "  lastDesiredAlpha = " + lastDesiredAlpha.ToString("F2"));
-				desiredAlpha = Mathf.MoveTowards((float)lastDesiredAlpha, (float)(desiredAlpha * 0.333333 + lastDesiredAlpha * 0.666667), (float)((Math.Abs(upperLim_pac) + Math.Abs(lowerLim_pac)) * 10 * Time.deltaTime));
+				double current = lastDesiredAlpha;
+				double target = (desiredAlpha * 0.333333 + lastDesiredAlpha * 0.666667);
+				double maxDelta = ((Math.Abs(upperLim_pac) + Math.Abs(lowerLim_pac)) * 10 * Time.deltaTime);
+
+				if (current < target)
+					desiredAlpha = current + Math.Min(target - current, maxDelta);
+				else
+					desiredAlpha = current - Math.Min(current - target, maxDelta);
+				
 				//Debug.Log("smoothedDesiredAlpha = " + desiredAlpha.ToString("F2") + "  alpha = " + alpha.ToString("F2"));
 				error = desiredAlpha - alpha;
 				if (AoA != lastAoA)
@@ -1725,8 +1765,46 @@ namespace ferram4
 
 				bool isPlayerPitching = (Math.Abs(state.pitch - state.pitchTrim) >= 0.01);
 				double pacRange = (Math.Abs(upperLim_pac) + Math.Abs(lowerLim_pac));
+
+				// PAC PD Controller.
 				double input = k_pac * (isPlayerPitching ? error : Math.Min(pacRange * 0.25, Math.Max(-pacRange * 0.25, error))) + kd_pac * (0.0 - d_AoA);
+
+				// PAC I Controller. (10.0/s max response speed, input range is -1.0 - 1.0)
+				double comprehensiveError = 0.0;
+				if (error * d_AoA > 0)
+				{
+					// The abs(error) is reducing. We don't need to put too much onto integration.
+					comprehensiveError = error - d_AoA * 0.5;
+					if (error * comprehensiveError < 0)
+					{
+						// if abs(d_AoA) is too high that the result should be reduced a bit.
+						comprehensiveError *= 0.6;
+					}
+				}
+				else
+				{
+					comprehensiveError = error;
+				}
+
+				double integrated = Math.Min(Math.Max(-10.0, ki_pac * lastPACKiScale * comprehensiveError), 10.0) * Math.Min(Math.Max(0.25, 4.0 / Math.Abs(d_AoA)), 1.0);
+				//Debug.Log(desiredAlpha.ToString("F2") + " " + alpha.ToString("F2") + " " + integrated.ToString("F2") + " " + lastPACKiScale.ToString("F2") + " " + lastPACIntegrateSum.ToString("F2"));
+				if (lastPACIntegrate * integrated < 0)
+				{
+					// The error has changed sign in this frame.
+					lastPACKiScale -= 0.1;
+				}
+				else
+				{
+					lastPACKiScale *= 1.002;
+				}
+
+				lastPACKiScale = Math.Min(Math.Max(0.8, lastPACKiScale), 1.2);
+				lastPACIntegrate = integrated * Time.deltaTime;
+				lastPACIntegrateSum += lastPACIntegrate;
+				lastPACIntegrateSum = Math.Min(Math.Max((this.vessel.LandedOrSplashed ? -0.3 : -1.5), lastPACIntegrateSum), (this.vessel.LandedOrSplashed ? 0.3 : 1.5));
+				
 				input = Math.Max(-2.0, Math.Min(input, 2.0)); // Clamp to -2.0 ~ 2.0
+				
 				if (error * AoA > 0.0)
 				{
 					// Aircraft is attempting to increase the absolute value of AoA.
@@ -1741,7 +1819,8 @@ namespace ferram4
 					if (input * error > 0)
 						input *= Math.Min(1.0 + kc_pac, 1.5);
 				}
-
+				input += lastPACIntegrateSum;
+				
 				// Avoid shaky control surfaces if the velocity is too small to calculate stable AoA.
 				Vector3d vel = this.GetVelocity();
 				if (vel.magnitude < 0.5)

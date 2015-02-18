@@ -349,6 +349,8 @@ namespace ferram4
 			FARControlSys.k_pac = Convert.ToDouble(FARControlSys.k_pac_str);
 			FARControlSys.kd_pac_str = config.GetValue("kd_pac", "0.06");
 			FARControlSys.kd_pac = Convert.ToDouble(FARControlSys.kd_pac_str);
+			FARControlSys.ki_pac_str = config.GetValue("ki_pac", "1.5");
+			FARControlSys.ki_pac = Convert.ToDouble(FARControlSys.ki_pac_str);
 			FARControlSys.kc_pac_str = config.GetValue("kc_pac", "0.0");
 			FARControlSys.kc_pac = Convert.ToDouble(FARControlSys.kc_pac_str);
 			FARControlSys.k_cics_str = config.GetValue("k_cics", "0.01");
@@ -402,6 +404,7 @@ namespace ferram4
 			config.SetValue("lowerLim_pac", (FARControlSys.lowerLim_pac).ToString());
 			config.SetValue("k_pac", (FARControlSys.k_pac).ToString());
 			config.SetValue("kd_pac", (FARControlSys.kd_pac).ToString());
+			config.SetValue("ki_pac", (FARControlSys.ki_pac).ToString());
 			config.SetValue("kc_pac", (FARControlSys.kc_pac).ToString());
 			config.SetValue("k_cics", (FARControlSys.k_cics).ToString());
 			config.SetValue("threshold_cics", (FARControlSys.threshold_cics).ToString());
