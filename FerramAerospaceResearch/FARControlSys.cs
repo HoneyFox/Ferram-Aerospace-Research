@@ -192,9 +192,11 @@ namespace ferram4
         
         private static bool WgLvHlp = false;
         private static bool YwDpHlp = false;
+		private static bool RYCHlp = false;
         private static bool PcDpHlp = false;
         private static bool DynCtrlHlp = false;
         private static bool AoAHlp = false;
+		private static bool PACHlp = false;
 
         private FlightInputCallback stabilityAugCallback = null;
 
@@ -839,7 +841,7 @@ namespace ferram4
             if(WgLvHlp)
             {
                 GUILayout.EndHorizontal();
-                GUILayout.Box("In normal flight, a plane can drift off of a wings-level attitude due to an interaction between the vertical tail and the wings called 'spiral divergence' (so named because it puts the plane on its side in a spiral; note that this is different from a spin).\n\r\n\rA wing leveler prevents this by creating a roll input proportional to the roll angle to bring the plane to level flight.\n\r\n\rThe 'k' exposed on the control panel is the proportional gain for this system; higher values will bring it to level flight faster, but may cause the plane to overshoot and roll the other way, especially if the time for the control surfaces to deflect becomes an issue.  If the gain is too small, the plane will not level out.\n\r\n\rThe 'kd' value given is the derivative gain for the system; this will attempt to damp out rolling motion regardless of roll angle.  Very large values will prevent the system from counteracting roll, while very small values will allow rolling oscillations to occur.", mySty);
+                GUILayout.Box("In normal flight, a plane can drift off of a wings-level attitude due to an interaction between the vertical tail and the wings called 'spiral divergence' (so named because it puts the plane on its side in a spiral; note that this is different from a spin).\n\r\n\rA wing leveler prevents this by creating a roll input proportional to the roll angle to bring the plane to level flight.\n\r\n\rThe 'k' exposed on the control panel is the proportional gain for this system; higher values will bring it to level flight faster, but may cause the plane to overshoot and roll the other way, especially if the time for the control surfaces to deflect becomes an issue.  If the gain is too small, the plane will not level out.\n\r\n\rThe 'kd' value given is the derivative gain for the system; this will attempt to damp out rolling motion regardless of roll angle.  Very large values will prevent the system from counteracting roll, while very small values will allow rolling oscillations to occur.\n\r\n\rYou can use zero for k to make it work as a Roll damper.", mySty);
                 GUILayout.BeginHorizontal();
             }
             else if(tmp)
@@ -856,13 +858,29 @@ namespace ferram4
             if (YwDpHlp)
             {
                 GUILayout.EndHorizontal();
-                GUILayout.Box("In flight, a plane can experience an oscillatory motion called 'Dutch Roll' caused by an interaction between the wings and the vertical tail.  This motion includes a minor amount of rolling and a large amount of yawing and sideslip which can make landing a plane dangerous or difficult.  A yaw damper counters this by creating a yaw input proportional and counter to the yaw rate to end this motion.\n\r\n\rThe 'k' exposed on the control panel is the gain for this system; higher values will damp the oscillations faster, but may cause unnecessary rudder deflections after the primary motion is damped out.", mySty);
+                GUILayout.Box("In flight, a plane can experience an oscillatory motion called 'Dutch Roll' caused by an interaction between the wings and the vertical tail.  This motion includes a minor amount of rolling and a large amount of yawing and sideslip which can make landing a plane dangerous or difficult.  A yaw damper counters this by creating a yaw input proportional and counter to the yaw rate to end this motion.\n\r\n\rThe 'kd' exposed on the control panel is the gain for this system; higher values will damp the oscillations faster, but may cause unnecessary rudder deflections after the primary motion is damped out.\n\rMoreover, the 'kp' exposed on the control panel will make this helper try to achieve zero sideslip.", mySty);
                 GUILayout.BeginHorizontal();
             }
             else if(tmp)
                 HelpWindowPos.height = 0;
 
             GUILayout.EndHorizontal();
+
+			GUILayout.Label("Roll Yaw Converter", TabLabelStyle);
+			GUILayout.BeginHorizontal();
+			GUILayout.Box("The roll yaw converter system attempts to work as the Aileron-Rudder-Interconnect (ARI), trying to keep side slip as little as possible when executing a roll maneuver by converting some of the roll command into yaw command.", mySty);
+			tmp = RYCHlp;
+			RYCHlp = GUILayout.Toggle(RYCHlp, "More", mytoggle, GUILayout.Width(60.0F), GUILayout.Height(30.0F));
+			if (RYCHlp)
+			{
+				GUILayout.EndHorizontal();
+				GUILayout.Box("When executing a roll at high angle of attack, a plane can experience a phenomenon called 'Aileron Adverse Yaw' caused by asymmetric drag of the wings due to aileron deflection.  To counter-act this effect as well as to achieve roll-along-velocity-vector, the Roll Yaw Converter will convert part of roll command into yaw command depending on the angle of attack.\n\r\n\rThe 'k' exposed on the control panel is the gain for the conversion; higher values will convert same amount of roll command to yaw command at a lower angle of attack.\n\rThe 'Scale' exposed on the control panel will be used to scale the converted yaw command. Higher value gives less yaw command and lower value gives more yaw command.", mySty);
+				GUILayout.BeginHorizontal();
+			}
+			else if (tmp)
+				HelpWindowPos.height = 0;
+
+			GUILayout.EndHorizontal();
 
             GUILayout.Label("Pitch Damper", TabLabelStyle);
             GUILayout.BeginHorizontal();
@@ -872,7 +890,7 @@ namespace ferram4
             if (PcDpHlp)
             {
                 GUILayout.EndHorizontal();
-                GUILayout.Box("Planes experience a type of motion called the 'Longitudinal Short-Period' mode (Longitudinal meaning motion limited to forwards-backwards, up-down and pitching; Short-Period refering to the fast oscillations) when a pitch command is given.\n\r\n\rWhile for some planes this motion dies out quickly, for others it results in the plane bobbing along as it flies; this makes the plane harder to control and also allows the possibility of stalling under a strong pitch command.  The pitch damper stops this motion by using the elevator or forward canards to slow the plane's movement.\n\r\n\rThe 'k' exposed on the panel is the gain for this system.  It behaves in a manner similar to the yaw damper gain.", mySty);
+                GUILayout.Box("Planes experience a type of motion called the 'Longitudinal Short-Period' mode (Longitudinal meaning motion limited to forwards-backwards, up-down and pitching; Short-Period refering to the fast oscillations) when a pitch command is given.\n\r\n\rWhile for some planes this motion dies out quickly, for others it results in the plane bobbing along as it flies; this makes the plane harder to control and also allows the possibility of stalling under a strong pitch command.  The pitch damper stops this motion by using the elevator or forward canards to slow the plane's movement.\n\r\n\rThe 'k' exposed on the panel is the gain for this system when the player is off-the-stick.\n\rThe 'k2' exposed on the panel is the gain for this system when player is pitching.\n\rThey behave in a manner similar to the yaw damper gain.", mySty);
                 GUILayout.BeginHorizontal();
             }
             else if(tmp)
@@ -912,6 +930,25 @@ namespace ferram4
 
             GUILayout.EndHorizontal();
 
+			GUILayout.Label("Pitch-AoA Controller", TabLabelStyle);
+			GUILayout.BeginHorizontal();
+			GUILayout.Box("This system allows you to control the angle of attack by using pitch input.", mySty);
+			tmp = PACHlp;
+			PACHlp = GUILayout.Toggle(PACHlp, "More", mytoggle, GUILayout.Width(60.0F), GUILayout.Height(30.0F));
+			if (PACHlp)
+			{
+				GUILayout.EndHorizontal();
+				GUILayout.Box("This system convert the pitch input into a desired angle of attack and uses a PID controller to achieve that desired angle of attack.\n\r\n\rThe 'Upper Lim' and the 'Lower Lim' are the angle of attack limits.\n\r\n\r" + 
+					"The 'k', 'ki' and 'kd' are the coefficients of the PID controller.\n\rThe 'kCm' is a coefficient (-1.0 ~ 1.0) to adjust bi-direction control authority based on the static-stability of the aircraft. The more static-unstable your aircraft is, the higher value of kCm should be used; for neutral-stable aircrafts, use a value around 0.0." + 
+					"CICS is the Counter-Inertia-Coupling System, it will inject pitch-down command when your aircraft is at a high angle of attack and has a high roll rate, to avoid roll departure, with 'thrshld' as the lower limit of roll rate and 'limit' as the higher limit, the higher 'k' is, the more pitch-down command will be given.\n\r\n\r", mySty);
+				GUILayout.Box("Auto Trim is a 1G auto-trimmer which works when PAC is activated, this function is located in Dynamic Control Adjustment panel.\n\r\n\rThe 'AoA' exposed in DCA panel should be set to the take-off angle of attack, and the 'Scaling Velocity' + 'Scaling Altitude' should be set to the take-off speed and altitude to make it work properly.", mySty);
+				GUILayout.Box("When DCA is activated, at high dynamic pressure, the PAC system will be changed from an angle-of-attack controller to a g-command controller. The gee-force limit is set to -2~12G (in some cases your aircraft will still exceed the limit a little though).", mySty);
+				GUILayout.BeginHorizontal();
+			}
+			else if (tmp)
+				HelpWindowPos.height = 0;
+
+			GUILayout.EndHorizontal();
 
 
             GUILayout.EndVertical();
